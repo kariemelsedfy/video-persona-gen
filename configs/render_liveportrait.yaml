@@ -1,0 +1,7 @@
+liveportrait_root: external/LivePortrait
+inference_script: external/LivePortrait/inference.py
+python_executable: python
+source_flag: -s
+driving_flag: -d
+output_flag: -o
+extra_args: []

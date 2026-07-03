@@ -1,0 +1,8 @@
+identity_id: hdtf_subset
+input_paths: []
+output_root: data/processed
+target_fps: 25
+audio_sample_rate: 16000
+split: train
+face_margin: 0.2
+allow_center_crop_fallback: true

@@ -1,0 +1,3 @@
+name: exp_000_environment_sanity
+question: Can the local or cluster environment run the minimum project dependencies?
+hypothesis: Basic Python, OpenCV, ffmpeg, and optional CUDA checks can be validated before model work starts.
