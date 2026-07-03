@@ -1,0 +1,5 @@
+experiment_dir: experiments/exp_000_environment_sanity
+metrics:
+  - fps
+  - vram
+  - face_detection_rate

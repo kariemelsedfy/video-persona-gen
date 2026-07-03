@@ -1,0 +1,5 @@
+identity_id: self_001
+manifest_path: data/processed/self_001/manifest.jsonl
+output_field: motion_template_path
+device: cuda
+batch_size: 1
