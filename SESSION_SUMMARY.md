@@ -7,8 +7,8 @@ This file is the short end-of-session handoff. Update it every session.
 - Date: July 2, 2026
 - Agent: Codex
 - Branch: `docs/session-context-files`
-- Summary: scaffolded the repository, then intentionally kept the code surface at the skeleton level rather than implementing the preprocessing or LivePortrait pipeline.
-- Context update: added explicit shared session files for instructions, outline, progress, and handoff so multiple chats and agents can stay aligned.
-- Verification: `python3 -m compileall scripts src/avagen` and direct execution of the stub CLI scripts.
+- Summary: scaffolded the repository, added shared session-context files, opened the PR, and saved a persistent instruction that significant working changes should be committed as the work progresses.
+- Context update: the repo now explicitly instructs future chats and agents to make small working commits during implementation instead of deferring everything to one final commit.
+- Verification: `python3 -m compileall scripts src/avagen` and direct execution of the stub CLI scripts earlier in the branch.
 - Open issues: nothing functional has been implemented yet; the current scripts and modules are placeholders by design.
-- Next step: commit the scaffold and session-context docs as separate atomic commits, then choose one concrete milestone to implement on a dedicated branch.
+- Next step: choose one concrete milestone to implement, and commit each significant working step as it lands.

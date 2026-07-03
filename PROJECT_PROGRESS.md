@@ -15,6 +15,7 @@ This is the current working-state tracker. Update it whenever repository state o
 - Added documentation scaffolding for ethics, benchmarks, dataset/model cards, and experiments.
 - Added placeholder CLI entrypoints and package modules rather than implementing the real pipeline yet.
 - Added shared session coordination files for multi-chat and multi-agent handoff.
+- Added a persistent workflow rule that significant working changes should be committed as the work progresses.
 
 ## Current Reality
 
@@ -35,4 +36,5 @@ This is the current working-state tracker. Update it whenever repository state o
 ## Handoff Notes
 
 - Keep future commits atomic. The scaffold should be committed separately from any real preprocessing or renderer implementation.
+- Significant work should be committed during the session, not deferred into one large end-of-session commit, unless the user explicitly requests otherwise.
 - If implementation starts, update this file immediately so later agents do not mistake stubs for working pipeline code.
