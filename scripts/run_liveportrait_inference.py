@@ -18,13 +18,18 @@ from avagen.utils.config import load_config
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run LivePortrait inference through a thin wrapper.")
-    parser.add_argument("--config", type=Path, help="Optional YAML config file.")
+    parser.add_argument(
+        "--config",
+        type=Path,
+        default=REPO_ROOT / "configs" / "render_liveportrait.yaml",
+        help="YAML config file. Defaults to configs/render_liveportrait.yaml.",
+    )
     parser.add_argument("--liveportrait-root", type=Path, help="Path to the LivePortrait checkout.")
     parser.add_argument("--inference-script", type=Path, help="Optional explicit inference script path.")
     parser.add_argument("--source", type=Path, required=True, help="Source portrait image.")
     parser.add_argument("--driving", type=Path, required=True, help="Driving video.")
     parser.add_argument("--output-dir", type=Path, required=True, help="Output directory for generated assets.")
-    parser.add_argument("--python-executable", default=sys.executable, help="Python executable for the LivePortrait run.")
+    parser.add_argument("--python-executable", default=None, help="Python executable for the LivePortrait run.")
     parser.add_argument("--source-flag", default=None, help="CLI flag name for the source image argument.")
     parser.add_argument("--driving-flag", default=None, help="CLI flag name for the driving video argument.")
     parser.add_argument("--output-flag", default=None, help="CLI flag name for the output directory argument.")
@@ -40,11 +45,20 @@ def _get_value(args: argparse.Namespace, config: dict[str, object], name: str, d
     return config.get(name, default)
 
 
+def _get_required_value(args: argparse.Namespace, config: dict[str, object], name: str) -> object:
+    value = _get_value(args, config, name)
+    if value is None:
+        raise ValueError(
+            f"Missing required value for '{name}'. Provide it in {args.config} or pass --{name.replace('_', '-')}."
+        )
+    return value
+
+
 def main() -> int:
     args = parse_args()
     config_data = load_config(args.config) if args.config else {}
 
-    liveportrait_root = Path(_get_value(args, config_data, "liveportrait_root"))
+    liveportrait_root = Path(_get_required_value(args, config_data, "liveportrait_root"))
     inference_script_value = _get_value(args, config_data, "inference_script")
     inference_script = Path(inference_script_value) if inference_script_value else None
     source_flag = _get_value(args, config_data, "source_flag", "-s")
@@ -68,7 +82,7 @@ def main() -> int:
         dry_run=args.dry_run,
     )
 
-    print(json.dumps(result, indent=2))
+    print(json.dumps(result.to_dict(), indent=2))
     return 0
 
 
