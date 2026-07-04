@@ -1,11 +1,13 @@
 .DS_Store
 .env
 .venv/
+.vscode/
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
 .pytest_cache/
+external/
 
 data/raw/
 data/processed/

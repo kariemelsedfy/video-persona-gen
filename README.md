@@ -78,11 +78,16 @@ python scripts/preprocess_dataset.py \
   --identity-id self_001
 ```
 
-Run the LivePortrait wrapper stub against an existing checkout:
+Run the LivePortrait wrapper against an official checkout:
 
 ```bash
+git clone https://github.com/KlingAIResearch/LivePortrait external/LivePortrait
+
+# Download weights into external/LivePortrait/pretrained_weights
+# See the official LivePortrait README for the current recommended command.
+
 python scripts/run_liveportrait_inference.py \
-  --liveportrait-root /path/to/LivePortrait \
+  --config configs/render_liveportrait.yaml \
   --source assets/source_self.png \
   --driving path/to/driving.mp4 \
   --output-dir outputs/samples/liveportrait_demo
@@ -90,6 +95,6 @@ python scripts/run_liveportrait_inference.py \
 
 ## Notes
 
-- `ffmpeg` and `ffprobe` will be expected on `PATH` once preprocessing is implemented.
-- The current scripts are interface stubs only. They preserve the planned CLI surface while implementation is deferred.
+- LivePortrait itself still expects its own upstream environment and pretrained weights in the external checkout.
+- `ffmpeg` and `ffprobe` are required by upstream LivePortrait and by the later preprocessing pipeline.
 - The LivePortrait integration is intended to remain a thin wrapper around an external checkout instead of vendoring that project into this repository.
