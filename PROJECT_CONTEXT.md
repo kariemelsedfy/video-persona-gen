@@ -48,3 +48,5 @@ Read `CODEX_CONTEXT.md` when detailed architectural or research context is neede
 - Never commit Bowdoin credentials. If password auth is needed, keep it only in a local ignored file such as `.env.hpc.local` or in the system keychain. Prefer SSH key auth if Bowdoin allows it for this account.
 - Verified on July 3, 2026: password-based SSH to `moosehead.bowdoin.edu` works from this machine using the local `.env.hpc.local` file and `expect`.
 - Local reusable Codex skill path: `~/.codex/skills/bowdoin-hpc-ssh`. Use it for repeatable Bowdoin SSH commands in future sessions.
+- Verified remote code workspace: `/home/kelsedfy/video-persona-gen`, with upstream LivePortrait staged at `/home/kelsedfy/video-persona-gen/external/LivePortrait`.
+- `moosehead` is a Slurm headnode for git, file, and job-submission work. Do not run Python workloads there directly; use Slurm or an approved interactive machine instead.
