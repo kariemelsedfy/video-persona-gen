@@ -21,6 +21,7 @@ Before ending a session:
 1. Update `PROJECT_PROGRESS.md` if the repository state or next steps changed.
 2. Update `SESSION_SUMMARY.md` with a concise handoff.
 3. Note the current branch, key files changed, verification run, and immediate next action.
+4. If significant working changes were made, commit them before ending the session unless the user explicitly says not to.
 
 ## File Ownership Rules
 
@@ -35,7 +36,10 @@ Before ending a session:
 - Always create a branch named `type/short-description`.
 - Keep branches scoped to one logical feature, fix, refactor, or docs change.
 - Make small atomic commits with messages like `feat: ...`, `fix: ...`, `docs: ...`, or `chore: ...`.
+- Commit every significant working change so reverting is easy.
+- Prefer several small working commits during implementation over one large commit at the end of a session.
 - Do not merge to `main` without explicit approval.
+- Never commit passwords, tokens, or HPC credentials. Keep per-user secrets only in ignored local files such as `.env.hpc.local`.
 
 ## Multi-Agent Coordination
 

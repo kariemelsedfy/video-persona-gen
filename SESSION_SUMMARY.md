@@ -6,9 +6,9 @@ This file is the short end-of-session handoff. Update it every session.
 
 - Date: July 3, 2026
 - Agent: Codex
-- Branch: `feature/liveportrait-inference-smoke`
-- Summary: replaced the LivePortrait wrapper stub with a real external-checkout runner, added smoke-test coverage, and updated docs/config for `external/LivePortrait`.
-- Context update: the renderer path is now partially real while the preprocessing pipeline remains stubbed.
-- Verification: `python3 -m compileall scripts src/avagen tests` and a direct smoke run of `run_liveportrait_inference()` against a temporary fake external `inference.py`.
-- Open issues: this shell still lacks `ffmpeg`, `huggingface-cli`, `git-lfs`, and `pytest`, so no real upstream LivePortrait run was completed here yet.
-- Next step: clone the official LivePortrait checkout, download pretrained weights, install upstream prerequisites, and run one real source-plus-driving inference.
+- Branch: `docs/hpc-access-context`
+- Summary: reviewed the Bowdoin HPC docs, documented the preferred remote-access path, and persisted the shared rule to commit every significant working change.
+- Context update: future sessions should prefer SSH to `moosehead.bowdoin.edu` for agent-driven terminal work, use the web portal only as a human fallback, require VPN off campus, and target Slurm `-p gpu --gres=gpu:pro6000:1` for the 96 GB Blackwell path when available.
+- Verification: fetched and inspected the Bowdoin HPC access, Open OnDemand, GPU, and hardware knowledge-base pages; updated the shared coordination files and local secrets skeleton.
+- Open issues: no Bowdoin SSH key or local ignored password file is configured yet, and no remote login test has been run from this session.
+- Next step: configure authentication for `moosehead.bowdoin.edu`, test access, and then move the first real LivePortrait checkout and inference workflow onto the HPC environment.

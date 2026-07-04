@@ -1,5 +1,6 @@
 .DS_Store
 .env
+.env.hpc.local
 .venv/
 .vscode/
 __pycache__/
