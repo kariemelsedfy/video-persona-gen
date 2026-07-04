@@ -46,3 +46,5 @@ Read `CODEX_CONTEXT.md` when detailed architectural or research context is neede
 - Treat the local machine as the editing and orchestration environment and Bowdoin HPC as the preferred execution environment for upstream LivePortrait installs and longer runs.
 - Long GPU jobs should go through Slurm on the `gpu` partition with explicit `--gres`. The preferred 96 GB target is `--gres=gpu:pro6000:1` when available.
 - Never commit Bowdoin credentials. If password auth is needed, keep it only in a local ignored file such as `.env.hpc.local` or in the system keychain. Prefer SSH key auth if Bowdoin allows it for this account.
+- Verified on July 3, 2026: password-based SSH to `moosehead.bowdoin.edu` works from this machine using the local `.env.hpc.local` file and `expect`.
+- Local reusable Codex skill path: `~/.codex/skills/bowdoin-hpc-ssh`. Use it for repeatable Bowdoin SSH commands in future sessions.

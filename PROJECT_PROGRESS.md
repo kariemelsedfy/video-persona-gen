@@ -20,6 +20,7 @@ This is the current working-state tracker. Update it whenever repository state o
 - Reviewed the Bowdoin HPC access, web portal, hardware, and GPU docs and documented the preferred remote workflow for future sessions.
 - Added a shared instruction to play a local completion sound at the end of finished tasks.
 - Added a local ignored `.env.hpc.local` file and attempted the first real SSH login to Bowdoin HPC using `expect`.
+- Corrected the Bowdoin password, verified successful SSH access to `moosehead`, and created a reusable local Codex skill for Bowdoin HPC SSH.
 
 ## Current Reality
 
@@ -30,7 +31,8 @@ This is the current working-state tracker. Update it whenever repository state o
 - There is an untracked local `LivePortrait/` directory in the working tree; treat it as local-only unless it is intentionally moved under the repo's expected `external/LivePortrait` path.
 - The preferred heavy-run target is Bowdoin HPC via `moosehead.bowdoin.edu`; off-campus access requires VPN and long jobs should use Slurm on `-p gpu` with explicit `--gres`, preferably `gpu:pro6000:1` when available.
 - A local ignored Bowdoin password file now exists, and this machine has `expect`, so password-driven SSH automation is technically possible here.
-- The first SSH attempt reached `moosehead.bowdoin.edu` and got a password prompt, but authentication was rejected with `Permission denied (publickey,password,hostbased)`.
+- Password-driven SSH to `moosehead.bowdoin.edu` now works from this machine using `.env.hpc.local` and `expect`.
+- A reusable local skill now exists at `~/.codex/skills/bowdoin-hpc-ssh`, with a tested script at `scripts/run_bowdoin_hpc_command.sh`.
 
 ## Verification
 
@@ -39,12 +41,13 @@ This is the current working-state tracker. Update it whenever repository state o
 - Fetched and inspected the Bowdoin HPC knowledge-base articles covering SSH access, the Open OnDemand portal, and GPU resource requests.
 - Verified that `.env.hpc.local` contains non-empty username and password fields without obvious quoting or whitespace issues.
 - Attempted SSH login to `moosehead.bowdoin.edu` using `expect`; the host was reachable but password authentication failed.
+- Retried SSH after correcting the password; login succeeded, `hostname` returned `moosehead`, and `sbatch` was available.
+- Forward-tested `~/.codex/skills/bowdoin-hpc-ssh/scripts/run_bowdoin_hpc_command.sh` successfully against `moosehead`.
 
 ## Next Recommended Step
 
-- Recheck the Bowdoin HPC password manually, or confirm that the Bowdoin HPC account is actually provisioned for SSH.
-- If password auth should work, update `.env.hpc.local` and retry the SSH login.
-- If the account is intended to use SSH keys, create or register a key and switch the workflow away from password automation.
+- Use the local Bowdoin skill to inspect the remote environment, confirm the working directory strategy, and start staging the upstream LivePortrait checkout on HPC.
+- Decide whether to keep password-based automation or convert the verified workflow to SSH keys for a cleaner long-term setup.
 - On the Bowdoin HPC workspace, clone or move the official LivePortrait checkout into `external/LivePortrait`, install prerequisites, and download pretrained weights.
 - Run one real end-to-end inference command with a source image and driving video, then record the exact setup in experiment notes.
 
@@ -52,5 +55,5 @@ This is the current working-state tracker. Update it whenever repository state o
 
 - `origin/main` already includes the LivePortrait wrapper PR; this branch is only for HPC workflow and shared-context updates.
 - `PROJECT_CONTEXT.md` now records the canonical Bowdoin remote-access workflow for future sessions.
-- Do not assume remote authentication is configured yet; the current stored password failed against `moosehead.bowdoin.edu` even though the host was reachable.
+- Remote authentication is now working from this machine with `.env.hpc.local`, and the reusable local skill lives at `~/.codex/skills/bowdoin-hpc-ssh`.
 - Future sessions should play a local completion sound when a task is finished.

@@ -8,8 +8,8 @@ This file is the short end-of-session handoff. Update it every session.
 - Agent: Codex
 - Branch: `docs/hpc-access-context`
 - Summary: reviewed the Bowdoin HPC docs, documented the preferred remote-access path, and persisted the shared rule to commit every significant working change.
-- Summary: reviewed the Bowdoin HPC docs, documented the preferred remote-access path, persisted the shared rule to commit every significant working change, added a project-wide completion-sound instruction, and attempted the first real Bowdoin SSH login using a local ignored password file.
-- Context update: the repo now has a local `.env.hpc.local` pattern for Bowdoin credentials, this machine has `expect`, and password-driven SSH automation is possible in principle, but the current password was rejected by `moosehead.bowdoin.edu`.
-- Verification: fetched and inspected the Bowdoin HPC access, Open OnDemand, GPU, and hardware knowledge-base pages; updated the shared coordination files and local secrets skeleton; verified the local env formatting; attempted a real SSH login to `moosehead.bowdoin.edu`.
-- Open issues: the host is reachable but Bowdoin rejected the current password, so remote HPC work is still blocked on correct SSH authentication.
-- Next step: confirm the Bowdoin HPC password or account provisioning, retry login, and only then create a reusable login skill/workflow for future sessions.
+- Summary: reviewed the Bowdoin HPC docs, documented the preferred remote-access path, persisted the shared rule to commit every significant working change, added a project-wide completion-sound instruction, verified Bowdoin SSH access with the corrected password, and created a reusable local Codex skill for Bowdoin HPC SSH.
+- Context update: Bowdoin SSH now works from this machine using `.env.hpc.local` plus `expect`, and the local reusable skill is installed at `~/.codex/skills/bowdoin-hpc-ssh`.
+- Verification: fetched and inspected the Bowdoin HPC access, Open OnDemand, GPU, and hardware knowledge-base pages; updated the shared coordination files and local secrets skeleton; verified the local env formatting; confirmed `moosehead` login and `sbatch` availability; forward-tested the new skill script successfully.
+- Open issues: the skill validator could not run locally because the bundled validation script depends on `PyYAML`, which is not installed on this Mac.
+- Next step: use the Bowdoin skill to inspect the remote filesystem and start the upstream LivePortrait setup on the HPC environment.
