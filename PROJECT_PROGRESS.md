@@ -22,6 +22,7 @@ This is the current working-state tracker. Update it whenever repository state o
 - Added a local ignored `.env.hpc.local` file and attempted the first real SSH login to Bowdoin HPC using `expect`.
 - Corrected the Bowdoin password, verified successful SSH access to `moosehead`, and created a reusable local Codex skill for Bowdoin HPC SSH.
 - Staged the remote Bowdoin code workspace by cloning this repo to `/home/kelsedfy/video-persona-gen` and upstream LivePortrait to `/home/kelsedfy/video-persona-gen/external/LivePortrait`.
+- Submitted and debugged multiple Bowdoin Slurm jobs for LivePortrait environment setup and Hugging Face weight download.
 
 ## Current Reality
 
@@ -38,6 +39,18 @@ This is the current working-state tracker. Update it whenever repository state o
 - The upstream renderer checkout now exists at `/home/kelsedfy/video-persona-gen/external/LivePortrait`.
 - `moosehead` is only for shell and Slurm orchestration; invoking `python3` there prints a warning to use Slurm or an interactive machine instead.
 - Bowdoin exposes `/usr/bin/ffmpeg` and modules including `miniconda3`, `python3.11`, `python3.11.8`, `cuda-12.8.1`, `cuda-12.9.1`, and `cuda-13.1`.
+- A remote conda environment now exists at `/home/kelsedfy/video-persona-gen/.conda/liveportrait`.
+- On Bowdoin `pro6000` nodes, `nvidia-smi` reports `NVIDIA RTX PRO 6000 Blackwell Server Edition` with driver `610.43.02`, and `nvcc -V` under `cuda-12.8.1` reports CUDA `12.8`.
+- The remote environment now has:
+  - `torch==2.11.0+cu128`
+  - `torchvision==0.26.0+cu128`
+  - `torchaudio==2.11.0+cu128`
+  - `transformers==4.38.0`
+  - `onnxruntime-gpu==1.18.0`
+  - `huggingface_hub==0.36.2`
+- The initial setup job failed only at the deprecated `huggingface-cli download` step.
+- A follow-up repair job restored `huggingface_hub==0.36.2` and `pip check` passed.
+- The remaining unresolved failure is the `hf download` step for `pretrained_weights`; the exact stderr was not recovered before the session hit the platform limit for further escalated remote commands.
 
 ## Verification
 
@@ -53,12 +66,20 @@ This is the current working-state tracker. Update it whenever repository state o
   - project repo: `1943167` on `main`
   - LivePortrait repo: `9b294b3` on `main`
 - Confirmed `/usr/bin/ffmpeg` exists on Bowdoin HPC and that module listings include `miniconda3` and multiple CUDA versions.
+- Ran a short `pro6000` GPU probe job and confirmed the target GPU/driver/CUDA combination:
+  - GPU: `NVIDIA RTX PRO 6000 Blackwell Server Edition`
+  - Driver: `610.43.02`
+  - CUDA toolkit: `12.8`
+- Confirmed from the official PyTorch site on July 3, 2026 that stable Linux pip installs support CUDA `12.8`, and used a `cu128` PyTorch install path as an inference from that official selector.
+- Ran a main-partition setup job that successfully created the remote conda env and installed the LivePortrait Python dependencies before failing at `huggingface-cli download`.
+- Ran a repair job that verified `hf` exists in the env at `/home/kelsedfy/video-persona-gen/.conda/liveportrait/bin/hf`.
 
 ## Next Recommended Step
 
 - Decide whether to keep password-based automation or convert the verified workflow to SSH keys for a cleaner long-term setup.
 - Choose the runtime path for Python work: Slurm GPU job or approved interactive machine, not `moosehead`.
-- On the Bowdoin HPC workspace, load `miniconda3` or another Python module, create the LivePortrait environment, and install upstream dependencies.
+- Resume from the existing remote env at `/home/kelsedfy/video-persona-gen/.conda/liveportrait`; do not recreate it from scratch unless it becomes corrupted.
+- Fix the final `hf download` command for the `pretrained_weights` subtree and capture both stdout and stderr in the Slurm log.
 - Download pretrained weights into `/home/kelsedfy/video-persona-gen/external/LivePortrait/pretrained_weights`.
 - Run one real end-to-end inference command with a source image and driving video, then record the exact setup in experiment notes.
 
@@ -67,5 +88,12 @@ This is the current working-state tracker. Update it whenever repository state o
 - `origin/main` already includes the LivePortrait wrapper PR; this branch is only for HPC workflow and shared-context updates.
 - `PROJECT_CONTEXT.md` now records the canonical Bowdoin remote-access workflow for future sessions.
 - Remote authentication is now working from this machine with `.env.hpc.local`, and the reusable local skill lives at `~/.codex/skills/bowdoin-hpc-ssh`.
-- The remote code workspace is ready, but environment creation and weight download still need to happen on a non-headnode execution path.
+- The remote code workspace and conda environment are ready, but the final pretrained-weights download command still needs to be corrected.
+- Bowdoin Slurm job IDs from this session:
+  - `63713`: successful `pro6000` GPU probe
+  - `63715`: main-partition setup job; env and dependencies installed, failed at deprecated `huggingface-cli`
+  - `63716`: repair job; restored `huggingface_hub==0.36.2`, `pip check` passed
+  - `63717`: confirmed `hf` CLI exists in the env
+  - `63718`: `hf download` attempt failed quickly; exact stderr not recovered
+- Further escalated remote commands were blocked at the end of this session by the platform usage limit, so the next session should start from the state above rather than retrying earlier steps.
 - Future sessions should play a local completion sound when a task is finished.

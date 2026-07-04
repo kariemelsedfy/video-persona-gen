@@ -50,3 +50,5 @@ Read `CODEX_CONTEXT.md` when detailed architectural or research context is neede
 - Local reusable Codex skill path: `~/.codex/skills/bowdoin-hpc-ssh`. Use it for repeatable Bowdoin SSH commands in future sessions.
 - Verified remote code workspace: `/home/kelsedfy/video-persona-gen`, with upstream LivePortrait staged at `/home/kelsedfy/video-persona-gen/external/LivePortrait`.
 - `moosehead` is a Slurm headnode for git, file, and job-submission work. Do not run Python workloads there directly; use Slurm or an approved interactive machine instead.
+- Verified remote LivePortrait environment path: `/home/kelsedfy/video-persona-gen/.conda/liveportrait`.
+- Current remaining remote blocker: the LivePortrait Python environment and most dependencies are installed, but the pretrained-weights download step still needs a working `hf download` invocation against the `pretrained_weights` subtree.
