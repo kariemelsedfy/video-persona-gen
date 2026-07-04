@@ -22,6 +22,7 @@ Before ending a session:
 2. Update `SESSION_SUMMARY.md` with a concise handoff.
 3. Note the current branch, key files changed, verification run, and immediate next action.
 4. If significant working changes were made, commit them before ending the session unless the user explicitly says not to.
+5. Play a local completion sound after finishing the task so the user gets an audible cue.
 
 ## File Ownership Rules
 

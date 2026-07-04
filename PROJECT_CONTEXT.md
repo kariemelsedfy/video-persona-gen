@@ -34,6 +34,7 @@ Read `CODEX_CONTEXT.md` when detailed architectural or research context is neede
 - Assume multiple chats or agents may touch the repo in parallel or in close succession.
 - Keep handoff notes explicit about branch, files changed, verification run, and next recommended action.
 - Do not treat `SESSION_SUMMARY.md` as a full design document; keep it short and operational.
+- Play a local completion sound at the end of each finished task so the user gets an audible cue.
 
 ## Remote HPC Workflow
 

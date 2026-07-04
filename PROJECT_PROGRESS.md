@@ -18,6 +18,7 @@ This is the current working-state tracker. Update it whenever repository state o
 - Replaced the LivePortrait wrapper stub with real command-building and subprocess execution against an external official checkout.
 - Added a smoke-style wrapper test and updated docs/config to expect `external/LivePortrait`.
 - Reviewed the Bowdoin HPC access, web portal, hardware, and GPU docs and documented the preferred remote workflow for future sessions.
+- Added a shared instruction to play a local completion sound at the end of finished tasks.
 
 ## Current Reality
 
@@ -48,3 +49,4 @@ This is the current working-state tracker. Update it whenever repository state o
 - `origin/main` already includes the LivePortrait wrapper PR; this branch is only for HPC workflow and shared-context updates.
 - `PROJECT_CONTEXT.md` now records the canonical Bowdoin remote-access workflow for future sessions.
 - Do not assume remote authentication is configured yet; the next session still needs real credentials or SSH key setup before any HPC commands can run.
+- Future sessions should play a local completion sound when a task is finished.
