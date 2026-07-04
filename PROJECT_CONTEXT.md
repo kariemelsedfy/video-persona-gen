@@ -34,6 +34,7 @@ Read `CODEX_CONTEXT.md` when detailed architectural or research context is neede
 - Assume multiple chats or agents may touch the repo in parallel or in close succession.
 - Keep handoff notes explicit about branch, files changed, verification run, and next recommended action.
 - Do not treat `SESSION_SUMMARY.md` as a full design document; keep it short and operational.
+- Play a local completion sound at the end of each finished task so the user gets an audible cue.
 
 ## Remote HPC Workflow
 
@@ -45,3 +46,9 @@ Read `CODEX_CONTEXT.md` when detailed architectural or research context is neede
 - Treat the local machine as the editing and orchestration environment and Bowdoin HPC as the preferred execution environment for upstream LivePortrait installs and longer runs.
 - Long GPU jobs should go through Slurm on the `gpu` partition with explicit `--gres`. The preferred 96 GB target is `--gres=gpu:pro6000:1` when available.
 - Never commit Bowdoin credentials. If password auth is needed, keep it only in a local ignored file such as `.env.hpc.local` or in the system keychain. Prefer SSH key auth if Bowdoin allows it for this account.
+- Verified on July 3, 2026: password-based SSH to `moosehead.bowdoin.edu` works from this machine using the local `.env.hpc.local` file and `expect`.
+- Local reusable Codex skill path: `~/.codex/skills/bowdoin-hpc-ssh`. Use it for repeatable Bowdoin SSH commands in future sessions.
+- Verified remote code workspace: `/home/kelsedfy/video-persona-gen`, with upstream LivePortrait staged at `/home/kelsedfy/video-persona-gen/external/LivePortrait`.
+- `moosehead` is a Slurm headnode for git, file, and job-submission work. Do not run Python workloads there directly; use Slurm or an approved interactive machine instead.
+- Verified remote LivePortrait environment path: `/home/kelsedfy/video-persona-gen/.conda/liveportrait`.
+- Current remaining remote blocker: the LivePortrait Python environment and most dependencies are installed, but the pretrained-weights download step still needs a working `hf download` invocation against the `pretrained_weights` subtree.

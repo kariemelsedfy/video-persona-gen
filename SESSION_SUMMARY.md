@@ -7,8 +7,8 @@ This file is the short end-of-session handoff. Update it every session.
 - Date: July 3, 2026
 - Agent: Codex
 - Branch: `docs/hpc-access-context`
-- Summary: reviewed the Bowdoin HPC docs, documented the preferred remote-access path, and persisted the shared rule to commit every significant working change.
-- Context update: future sessions should prefer SSH to `moosehead.bowdoin.edu` for agent-driven terminal work, use the web portal only as a human fallback, require VPN off campus, and target Slurm `-p gpu --gres=gpu:pro6000:1` for the 96 GB Blackwell path when available.
-- Verification: fetched and inspected the Bowdoin HPC access, Open OnDemand, GPU, and hardware knowledge-base pages; updated the shared coordination files and local secrets skeleton.
-- Open issues: no Bowdoin SSH key or local ignored password file is configured yet, and no remote login test has been run from this session.
-- Next step: configure authentication for `moosehead.bowdoin.edu`, test access, and then move the first real LivePortrait checkout and inference workflow onto the HPC environment.
+- Summary: verified the Bowdoin SSH workflow, staged the remote repo and upstream LivePortrait checkout, created the remote LivePortrait conda environment on Bowdoin, installed the main dependency stack, and narrowed the remaining blocker down to the final pretrained-weights download command.
+- Context update: the remote code workspace is `/home/kelsedfy/video-persona-gen`; the remote env is `/home/kelsedfy/video-persona-gen/.conda/liveportrait`; the local reusable Bowdoin skill is `~/.codex/skills/bowdoin-hpc-ssh`; and `moosehead` is for shell/Slurm orchestration only.
+- Verification: confirmed `pro6000` availability and probed the target GPU/driver/CUDA stack; verified official PyTorch CUDA 12.8 support and installed `torch==2.11.0+cu128`, `torchvision==0.26.0+cu128`, `torchaudio==2.11.0+cu128`; installed upstream LivePortrait dependencies including `transformers==4.38.0` and `onnxruntime-gpu==1.18.0`; restored `huggingface_hub==0.36.2`; verified `hf` exists in the env.
+- Open issues: `huggingface-cli download` is deprecated and failed, `hf download` still needs a corrected invocation for the `pretrained_weights` subtree, the exact stderr for that final failure was not recovered, and further escalated remote commands were blocked by the platform usage limit at the end of the session.
+- Next step: resume from the existing env, capture stdout and stderr for a corrected `hf download` Slurm job, finish populating `external/LivePortrait/pretrained_weights`, and then run the first real GPU inference.
