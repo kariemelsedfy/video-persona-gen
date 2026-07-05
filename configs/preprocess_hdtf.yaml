@@ -1,8 +1,22 @@
-identity_id: hdtf_subset
-input_paths: []
+identity_id: hdtf_cmr
+input_paths:
+  - data/raw/hdtf_cmr/hdtf_cmr_session0.mp4
+  - data/raw/hdtf_cmr/hdtf_cmr_session1.mp4
+  - data/raw/hdtf_cmr/hdtf_cmr_session2.mp4
 output_root: data/processed
 target_fps: 25
 audio_sample_rate: 16000
 split: train
 face_margin: 0.2
 allow_center_crop_fallback: true
+
+# Identity: Cathy McMorris Rodgers (HDTF "WRA" subset), selected as the
+# best-footage HDTF identity per PROJECT_PROGRESS.md session notes:
+# 3 distinct recording sessions, ~20.8 min total annotated speaking time,
+# all from her own official channel. Trim windows come directly from
+# HDTF's WRA_annotion_time.txt (CathyMcMorrisRodgers0/1/2).
+#
+# Source videos (trimmed to HDTF annotation windows):
+#   session0: https://www.youtube.com/watch?v=il5U_vG9Jnk (00:02-04:05)
+#   session1: https://www.youtube.com/watch?v=yDi_pmbanwc (00:05-15:00)
+#   session2: https://www.youtube.com/watch?v=21mNN49Pp34 (00:05-01:55)
