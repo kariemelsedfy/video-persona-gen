@@ -64,7 +64,7 @@ pip install -r requirements.txt
 pip install -e .
 ```
 
-Inspect a video stub:
+Inspect a video:
 
 ```bash
 python scripts/inspect_video.py path/to/clip.mp4
@@ -76,6 +76,16 @@ Preprocess a single talking-head clip into audio, crops, metadata, and a manifes
 python scripts/preprocess_dataset.py \
   --input path/to/clip.mp4 \
   --identity-id self_001
+```
+
+Extract a LivePortrait motion template for processed clips:
+
+```bash
+python scripts/extract_motion.py \
+  --config configs/extract_motion.yaml \
+  --manifest-path data/processed/self_001/manifest.jsonl \
+  --liveportrait-root external/LivePortrait \
+  --python-executable python
 ```
 
 Run the LivePortrait wrapper against an official checkout:
@@ -125,4 +135,5 @@ bash scripts/fetch_bowdoin_liveportrait_output.sh \
 - LivePortrait itself still expects its own upstream environment and pretrained weights in the external checkout.
 - `ffmpeg` and `ffprobe` are required by upstream LivePortrait and by the later preprocessing pipeline.
 - The preprocessing path writes clip outputs under `data/processed/<identity_id>/<clip_id>/` with `audio.wav`, `face_crops/`, `frame_metadata.json`, `metadata.json`, and an identity-level `manifest.jsonl`.
+- The motion-extraction path writes `motion_template.pkl` back into each processed clip directory and refreshes the manifest’s `motion_template_path` field.
 - The LivePortrait integration is intended to remain a thin wrapper around an external checkout instead of vendoring that project into this repository.

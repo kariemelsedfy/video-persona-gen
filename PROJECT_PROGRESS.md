@@ -33,6 +33,8 @@ This is the current working-state tracker. Update it whenever repository state o
 - Added a pure-Python manifest smoke test at `tests/test_manifest_generation.py`.
 - Synced the preprocessing code to the Bowdoin repo and ran a real Slurm smoke test on the `main` partition against a synthetic audio-backed version of `external/LivePortrait/assets/examples/driving/d0.mp4`.
 - Verified the updated persistent-storage LivePortrait round-trip flow with two Bowdoin jobs: the first populated `/mnt/hpc/tmp/kelsedfy/video-persona-gen/liveportrait_weights`, and the second explicitly reused those persisted weights instead of redownloading them.
+- Implemented a real motion-template extraction path that stages a working driving video, invokes upstream LivePortrait to generate its native `.pkl` template, copies that template into the processed clip directory, updates `metadata.json`, and refreshes `manifest.jsonl`.
+- Added `scripts/extract_motion.py`, replaced the placeholder `slurm/extract_motion.sbatch`, and added a unit-style smoke test for metadata/manifest refresh at `tests/test_motion_template_extraction.py`.
 
 ## Current Reality
 
@@ -40,6 +42,8 @@ This is the current working-state tracker. Update it whenever repository state o
 - `scripts/inspect_video.py`, `scripts/preprocess_dataset.py`, and `scripts/create_manifest.py` now call real package code instead of returning skeleton JSON.
 - The preprocessing path now writes `audio.wav`, `face_crops/`, `frame_metadata.json`, `metadata.json`, `manifest.jsonl`, and `dataset_report.json`.
 - Face tracking is still a minimal OpenCV Haar-cascade baseline with fallback cropping; landmarks, head pose, expressions, and motion templates are still unimplemented.
+- Face tracking is still a minimal OpenCV Haar-cascade baseline with fallback cropping, and landmarks/head pose/expressions are still unimplemented.
+- Motion templates are now implemented through upstream LivePortrait and stored per clip as `motion_template.pkl`.
 - This shell currently does not have `ffmpeg`, `huggingface-cli`, `git-lfs`, or `pytest`, so full upstream LivePortrait validation and normal pytest execution were not completed here.
 - Bowdoin now has a confirmed durable layout for this project:
   - weights: `/mnt/hpc/tmp/kelsedfy/video-persona-gen/liveportrait_weights`
@@ -122,6 +126,11 @@ This is the current working-state tracker. Update it whenever repository state o
   - `63752` completed successfully and `outputs/bowdoin_liveportrait/persistent-storage-smoke-2/logs/hf.log` showed `Reusing persisted weights at /mnt/hpc/tmp/kelsedfy/video-persona-gen/liveportrait_weights`
   - `63752` status recorded `persist_output_dir=/mnt/hpc/tmp/kelsedfy/video-persona-gen/liveportrait_runs/63752`
   - local fetched output sizes for `63752` were about `107209` bytes for `s0--d0.mp4` and `308910` bytes for `s0--d0_concat.mp4`
+- Ran Bowdoin GPU job `63754` through `slurm/extract_motion.sbatch` against `/mnt/hpc/tmp/kelsedfy/video-persona-gen/data/processed/smoke_preprocess/manifest.jsonl`:
+  - the extraction command completed successfully for clip `d0_tone`
+  - the generated template landed at `/mnt/hpc/tmp/kelsedfy/video-persona-gen/data/processed/smoke_preprocess/d0_tone/motion_template.pkl`
+  - the template file size was `86025` bytes
+  - both `metadata.json` and `manifest.jsonl` now include the `motion_template_path`
 
 ## Next Recommended Step
 
@@ -130,7 +139,7 @@ This is the current working-state tracker. Update it whenever repository state o
 - Keep `/mnt/hpc/tmp/<user>/video-persona-gen/liveportrait_weights` as the canonical Bowdoin weight cache and stop redownloading weights per run.
 - Decide whether to keep password-based automation or convert the verified workflow to SSH keys for a cleaner long-term setup.
 - Investigate the `onnxruntime-gpu` CUDA-provider mismatch (`libcublasLt.so.11` missing) so the ONNX subcomponents use GPU acceleration on Bowdoin instead of falling back noisily.
-- After one clip preprocesses cleanly, implement the next layer of derived features: landmarks, head pose, expressions, or LivePortrait motion-template extraction.
+- After one real clip preprocesses cleanly, implement the next layer of derived features after motion templates: landmarks, head pose, or expression features.
 
 ## Handoff Notes
 
@@ -158,5 +167,6 @@ This is the current working-state tracker. Update it whenever repository state o
   - `63750`: Slurm smoke test for the new preprocessing pipeline on a synthetic audio-backed sample clip
   - `63751`: first persistent-storage LivePortrait run; created the durable weight cache and persisted run artifacts under `/mnt/hpc/tmp/kelsedfy/video-persona-gen/liveportrait_runs/63751`
   - `63752`: second persistent-storage LivePortrait run; reused the durable weight cache and persisted run artifacts under `/mnt/hpc/tmp/kelsedfy/video-persona-gen/liveportrait_runs/63752`
+  - `63754`: GPU smoke test for the new motion-template extraction path; produced `motion_template.pkl` and refreshed the processed sample manifest
 - The current remote recipe is: keep the existing Bowdoin env in home, stage the LivePortrait checkout copy under node-local `/tmp` for runtime, and persist reusable weights plus fetched artifacts under `/mnt/hpc/tmp/<user>/video-persona-gen`.
 - Future sessions should play a local completion sound when a task is finished.
