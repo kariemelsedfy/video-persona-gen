@@ -183,6 +183,31 @@ bash scripts/fetch_bowdoin_liveportrait_output.sh \
   --local-dir outputs/bowdoin_liveportrait/job-63748
 ```
 
+To round-trip a Bowdoin predicted-render job back onto this machine, use remote Bowdoin paths for the checkpoint and manifest:
+
+```bash
+bash scripts/run_bowdoin_predicted_render_roundtrip.sh \
+  --checkpoint-path /mnt/hpc/tmp/<user>/video-persona-gen/verifications/gru-motion-training.eXMSL3/checkpoints/best.pt \
+  --manifest-path /mnt/hpc/tmp/<user>/video-persona-gen/data/processed/self_001/manifest.jsonl
+```
+
+That wrapper:
+
+- clones the requested Git ref into Bowdoin scratch before submission, so it does not depend on the dirty home checkout
+- submits `slurm/render_predicted_motion.sbatch`
+- polls Slurm from the local side until the job finishes
+- fetches the persisted output root into `outputs/bowdoin_predicted_render/job-<jobid>/`
+- leaves the remote artifacts under `/mnt/hpc/tmp/<user>/video-persona-gen/render_predicted_motion/<run-id>/`
+
+If you already know the Bowdoin job ID and remote output root, you can attach just the download phase:
+
+```bash
+bash scripts/fetch_bowdoin_predicted_render_output.sh \
+  --job-id 63790 \
+  --remote-output-root /mnt/hpc/tmp/<user>/video-persona-gen/render_predicted_motion/predicted-template-rendering-pro6000.ryrmmL \
+  --local-dir outputs/bowdoin_predicted_render/job-63790
+```
+
 ## Notes
 
 - LivePortrait itself still expects its own upstream environment and pretrained weights in the external checkout.
