@@ -208,6 +208,33 @@ bash scripts/fetch_bowdoin_predicted_render_output.sh \
   --local-dir outputs/bowdoin_predicted_render/job-63790
 ```
 
+To round-trip a Bowdoin preprocessing job from local raw videos into Bowdoin scratch, use:
+
+```bash
+bash scripts/run_bowdoin_preprocess_roundtrip.sh \
+  --identity-id hdtf_cmr \
+  --local-raw-dir data/raw/hdtf_cmr \
+  --overwrite
+```
+
+That wrapper:
+
+- uploads the local raw identity directory to `/mnt/hpc/tmp/<user>/video-persona-gen/data/raw/<identity>/`
+- clones the requested Git ref into Bowdoin scratch before submission, so it does not depend on the dirty home checkout
+- submits `slurm/preprocess.sbatch` on the CPU `main` partition using the tracked Bowdoin env
+- polls Slurm from the local side until the job finishes
+- downloads a small inspection bundle into `outputs/bowdoin_preprocess/job-<jobid>/`
+- leaves the full processed identity in Bowdoin scratch at `/mnt/hpc/tmp/<user>/video-persona-gen/data/processed/<identity>/`
+
+If the preprocess job is already running or already finished, you can attach just the local inspection download:
+
+```bash
+bash scripts/fetch_bowdoin_preprocess_output.sh \
+  --job-id 12345 \
+  --remote-identity-dir /mnt/hpc/tmp/<user>/video-persona-gen/data/processed/hdtf_cmr \
+  --local-dir outputs/bowdoin_preprocess/job-12345
+```
+
 To prepare one processed identity manifest for training on Bowdoin in a single tracked job, run:
 
 ```bash

@@ -5,9 +5,9 @@ This is the current working-state tracker. Update it whenever repository state o
 ## Status
 
 - Date: July 5, 2026
-- Phase: first model baseline merged, Bowdoin manifest-preparation job Bowdoin-verified; first real (non-smoke) identity now preprocessed locally
-- Branch: `feat/hdtf-cmr-identity` (new branch off `main`; `feat/bowdoin-manifest-pipeline` work above is already merged/separate)
-- Overall state: `main` now contains the first complete model-side path on top of the Bowdoin preprocessing pipeline, including the predicted-render round-trip workflow, and the manifest-preparation Slurm job. The current branch adds the first non-synthetic dataset: three HDTF clips for identity `hdtf_cmr` have been downloaded, trimmed, and run through `scripts/preprocess_dataset.py` locally on the Mac (no Bowdoin involved yet). Motion extraction and everything downstream of it still needs Bowdoin and is intentionally left for the next session/agent.
+- Phase: first model baseline merged, Bowdoin manifest-preparation job Bowdoin-verified; first real (non-smoke) identity now preprocessed locally and Bowdoin raw-preprocess round-trip is in progress
+- Branch: `feat/bowdoin-preprocess-roundtrip`
+- Overall state: `main` now contains the first complete model-side path on top of the Bowdoin preprocessing pipeline, including the predicted-render round-trip workflow, and the manifest-preparation Slurm job. The current branch adds the missing local-to-Bowdoin raw preprocessing bridge: `scripts/upload_to_bowdoin.sh`, `scripts/run_bowdoin_preprocess_roundtrip.sh`, and `scripts/fetch_bowdoin_preprocess_output.sh`, plus a Bowdoin-safe CPU `slurm/preprocess.sbatch`. A real Bowdoin run against `data/raw/hdtf_cmr/` is currently in progress from this branch: the raw upload finished successfully, Bowdoin job `63795` was submitted, and the latest direct remote check showed `63795` still `RUNNING` on `moose12` at about `11:25` elapsed. Local exec session `10600` is still the wrapper poll/fetch process, but if this machine shuts down before completion, only the local fetch will be interrupted; the remote Slurm job will keep running on Bowdoin. Motion extraction and everything downstream of preprocessing still needs Bowdoin and remains the next stage after this wrapper is verified.
 
 ## Completed
 
