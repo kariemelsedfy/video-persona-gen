@@ -29,6 +29,8 @@ class ManifestRecord:
     split: str
     audio_features_path: str | None = None
     prosody_summary_path: str | None = None
+    motion_features_path: str | None = None
+    motion_summary_path: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -80,6 +82,8 @@ def refresh_identity_manifest(
             split=split,
             audio_features_path=optional_artifacts.get("audio_features_path"),
             prosody_summary_path=optional_artifacts.get("prosody_summary_path"),
+            motion_features_path=optional_artifacts.get("motion_features_path"),
+            motion_summary_path=optional_artifacts.get("motion_summary_path"),
         )
         records.append(record)
         split_counts[split] = split_counts.get(split, 0) + 1

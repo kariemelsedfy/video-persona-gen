@@ -7,7 +7,7 @@ This is the current working-state tracker. Update it whenever repository state o
 - Date: July 4, 2026
 - Phase: Bowdoin storage hardening and preprocessing pipeline implementation
 - Branch: `docs/hpc-access-context`
-- Overall state: the Bowdoin remote environment can complete a real upstream LivePortrait inference job while reusing persistent weights from `/mnt/hpc/tmp/kelsedfy/video-persona-gen/liveportrait_weights`, the durable scratch layout is verified end to end, processed clips can now produce real motion templates plus real audio feature artifacts, and the repo has a manifest-backed dataset/split layer for downstream training code
+- Overall state: the Bowdoin remote environment can complete a real upstream LivePortrait inference job while reusing persistent weights from `/mnt/hpc/tmp/kelsedfy/video-persona-gen/liveportrait_weights`, the durable scratch layout is verified end to end, processed clips can now produce real motion templates plus both audio and motion feature artifacts, and the repo has a manifest-backed dataset/split layer for downstream training code
 
 ## Completed
 
@@ -41,6 +41,9 @@ This is the current working-state tracker. Update it whenever repository state o
 - Implemented WAV loading and framewise audio feature extraction in `src/avagen/data/audio.py`, `src/avagen/features/audio_features.py`, and `src/avagen/features/prosody.py`.
 - Added `scripts/extract_audio_features.py` plus `configs/extract_audio_features.yaml` to write `audio_features.npz` and `prosody_summary.json` back into each clip directory and refresh the manifest with their paths.
 - Added `tests/test_audio_feature_extraction.py`.
+- Implemented numeric motion feature extraction in `src/avagen/features/motion_features.py`.
+- Added `scripts/extract_motion_features.py` plus `configs/extract_motion_features.yaml` to flatten `motion_template.pkl` into `motion_features.npz`, emit `motion_summary.json`, and refresh the manifest with their paths.
+- Added `tests/test_motion_feature_extraction.py`.
 
 ## Current Reality
 
@@ -52,6 +55,7 @@ This is the current working-state tracker. Update it whenever repository state o
 - Motion templates are now implemented through upstream LivePortrait and stored per clip as `motion_template.pkl`.
 - Dataset consumption is now no longer stubbed for the manifest layer: processed clip records can be loaded and filtered by split, and clip-level split assignments can be rewritten deterministically.
 - Audio features are now no longer stubbed for the processed-clip layer: each clip can produce framewise RMS, log-RMS, zero-crossing, peak-amplitude, and spectral-centroid features plus a summarized prosody JSON.
+- Motion features are now no longer stubbed for the processed-clip layer: each clip can flatten LivePortrait motion templates into a stable `motion_vector` plus component arrays for scale, rotation, expression, translation, keypoints, eye ratio, and lip ratio.
 - This shell currently does not have `ffmpeg`, `huggingface-cli`, `git-lfs`, or `pytest`, so full upstream LivePortrait validation and normal pytest execution were not completed here.
 - Bowdoin now has a confirmed durable layout for this project:
   - weights: `/mnt/hpc/tmp/kelsedfy/video-persona-gen/liveportrait_weights`
@@ -148,6 +152,11 @@ This is the current working-state tracker. Update it whenever repository state o
   - generated `/mnt/hpc/tmp/kelsedfy/video-persona-gen/data/processed/smoke_preprocess/d0_tone/prosody_summary.json` at `285` bytes
   - extracted `311` feature frames for clip `d0_tone`
   - refreshed both `metadata.json` and `manifest.jsonl` with `audio_features_path` and `prosody_summary_path`
+- Ran Bowdoin `main`-partition job `63759` for `scripts/extract_motion_features.py` against `/mnt/hpc/tmp/kelsedfy/video-persona-gen/data/processed/smoke_preprocess/manifest.jsonl`:
+  - generated `/mnt/hpc/tmp/kelsedfy/video-persona-gen/data/processed/smoke_preprocess/d0_tone/motion_features.npz` at `130480` bytes
+  - generated `/mnt/hpc/tmp/kelsedfy/video-persona-gen/data/processed/smoke_preprocess/d0_tone/motion_summary.json` at `228` bytes
+  - flattened the sample clip into a motion feature vector dimension of `205`
+  - refreshed both `metadata.json` and `manifest.jsonl` with `motion_features_path` and `motion_summary_path`
 
 ## Next Recommended Step
 
@@ -156,7 +165,7 @@ This is the current working-state tracker. Update it whenever repository state o
 - Keep `/mnt/hpc/tmp/<user>/video-persona-gen/liveportrait_weights` as the canonical Bowdoin weight cache and stop redownloading weights per run.
 - Decide whether to keep password-based automation or convert the verified workflow to SSH keys for a cleaner long-term setup.
 - Investigate the `onnxruntime-gpu` CUDA-provider mismatch (`libcublasLt.so.11` missing) so the ONNX subcomponents use GPU acceleration on Bowdoin instead of falling back noisily.
-- After one real clip preprocesses cleanly, implement the next actual model-input feature layer after audio features and motion templates: landmarks/head pose, expression features, or the first real training loop.
+- After one real clip preprocesses cleanly, implement the next actual model-input feature layer after audio features and motion features: landmarks/head pose, expression features, or the first real training loop.
 
 ## Handoff Notes
 
@@ -187,5 +196,5 @@ This is the current working-state tracker. Update it whenever repository state o
   - `63754`: GPU smoke test for the new motion-template extraction path; produced `motion_template.pkl` and refreshed the processed sample manifest
 - The current remote recipe is: keep the existing Bowdoin env in home, stage the LivePortrait checkout copy under node-local `/tmp` for runtime, and persist reusable weights plus fetched artifacts under `/mnt/hpc/tmp/<user>/video-persona-gen`.
 - The current local data recipe is: `preprocess_dataset.py` -> `extract_motion.py` -> `create_splits.py` -> future audio/motion feature extraction and training loaders.
-- The current local data recipe is: `preprocess_dataset.py` -> `extract_motion.py` -> `create_splits.py` -> `extract_audio_features.py` -> future landmark/expression features and training loaders.
+- The current local data recipe is: `preprocess_dataset.py` -> `extract_motion.py` -> `create_splits.py` -> `extract_audio_features.py` -> `extract_motion_features.py` -> future landmark/expression features and training loaders.
 - Future sessions should play a local completion sound when a task is finished.
