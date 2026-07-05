@@ -5,9 +5,9 @@ This is the current working-state tracker. Update it whenever repository state o
 ## Status
 
 - Date: July 5, 2026
-- Phase: first model baseline merged, predicted-render round-trip workflow Bowdoin-verified
-- Branch: `feat/predicted-render-roundtrip`
-- Overall state: `main` now contains the first complete model-side path on top of the Bowdoin preprocessing pipeline, including the predicted-template render bridge, and the current branch adds the missing submit-and-fetch workflow so a Bowdoin predicted-render job can run from a fresh scratch clone and download its rendered MP4s back into this local repo automatically
+- Phase: first model baseline merged, Bowdoin manifest-preparation job Bowdoin-verified
+- Branch: `feat/bowdoin-manifest-pipeline`
+- Overall state: `main` now contains the first complete model-side path on top of the Bowdoin preprocessing pipeline, including the predicted-render round-trip workflow, and the current branch adds a single tracked Slurm job that turns a processed identity manifest into a training-ready manifest by running motion extraction, split assignment, audio features, and motion features in order
 
 ## Completed
 
@@ -53,6 +53,7 @@ This is the current working-state tracker. Update it whenever repository state o
 - Implemented motion evaluation metrics in `src/avagen/evaluation/motion_metrics.py`, added `scripts/evaluate_motion.py`, `configs/evaluate_motion.yaml`, and a Bowdoin-safe `slurm/evaluate.sbatch`, and added `tests/test_motion_evaluation.py`.
 - Implemented a predicted-template render bridge on the current branch through `src/avagen/renderers/video_renderer.py`, `scripts/render_predicted_motion.py`, `configs/render_predicted_motion.yaml`, and `slurm/render_predicted_motion.sbatch`, plus `tests/test_predicted_motion_rendering.py`.
 - Added Bowdoin predicted-render round-trip wrappers at `scripts/run_bowdoin_predicted_render_roundtrip.sh` and `scripts/fetch_bowdoin_predicted_render_output.sh` so persisted render outputs can be fetched into the local repo after Slurm completion.
+- Added `slurm/prepare_dataset_manifest.sbatch` so Bowdoin can prepare one processed identity manifest for training in a single tracked job.
 
 ## Current Reality
 
@@ -67,8 +68,9 @@ This is the current working-state tracker. Update it whenever repository state o
 - Motion features are now no longer stubbed for the processed-clip layer: each clip can flatten LivePortrait motion templates into a stable `motion_vector` plus component arrays for scale, rotation, expression, translation, keypoints, eye ratio, and lip ratio.
 - `main` now also contains an aligned `AudioMotionSequenceDataset`, a first GRU trainer with experiment outputs under `experiment_dir`, a motion-prediction path that reconstructs `predicted_motion_template.pkl` from checkpoint outputs, and a motion-evaluation path that scores predicted motion bundles against ground truth.
 - `main` now also contains the predicted-template render bridge, so a checkpoint and processed manifest can produce actual rendered MP4 outputs through upstream LivePortrait.
+- `main` now also contains a predicted-render round-trip workflow that downloads Bowdoin render outputs into `outputs/bowdoin_predicted_render/job-<jobid>/`.
 - The new training and evaluation Slurm templates now write logs under `/mnt/hpc/tmp/%u/video-persona-gen/` instead of the quota-limited Bowdoin home workspace.
-- The current branch now adds a verified Bowdoin round-trip workflow for the predicted-render path: it submits from a fresh scratch clone, polls Slurm locally, and downloads the persisted output root into `outputs/bowdoin_predicted_render/job-<jobid>/`.
+- The current branch now adds a verified Bowdoin manifest-preparation job that runs `extract_motion.py`, `create_splits.py`, `extract_audio_features.py`, and `extract_motion_features.py` in one `gpu:pro6000:1` Slurm allocation.
 - This shell currently does not have `ffmpeg`, `huggingface-cli`, `git-lfs`, or `pytest`, so full upstream LivePortrait validation and normal pytest execution were not completed here.
 - This shell also does not have `numpy`, `torch`, or `yaml`, so the new aligned-sequence, training, prediction, and evaluation paths were syntax-checked locally with `python3 -m compileall`, and their real runtime verification was performed on Bowdoin instead.
 - Bowdoin now has a confirmed durable layout for this project:
@@ -174,17 +176,15 @@ This is the current working-state tracker. Update it whenever repository state o
 
 ## Next Recommended Step
 
-- First open and merge the current round-trip branch:
-- `feat/predicted-render-roundtrip` is now Bowdoin-verified and ready for PR merge
-- Then run the first real third-party or self-recorded talking-head mini-dataset through the full Bowdoin scratch pipeline and use the new round-trip wrapper to pull the rendered validation outputs back locally:
+- First open and merge the current manifest-preparation branch:
+- `feat/bowdoin-manifest-pipeline` is now Bowdoin-verified and ready for PR merge
+- Then run the first real third-party or self-recorded talking-head mini-dataset through the full Bowdoin scratch pipeline:
 - `preprocess_dataset.py`
-- `extract_motion.py`
-- `create_splits.py`
-- `extract_audio_features.py`
-- `extract_motion_features.py`
+- `slurm/prepare_dataset_manifest.sbatch`
 - `train_motion.py`
 - `predict_motion.py`
 - `evaluate_motion.py`
+- `run_bowdoin_predicted_render_roundtrip.sh`
 - Decide whether the next highest-value task is:
 - adding a single-command Bowdoin orchestration wrapper for the full preprocess-to-render pipeline
 - adding richer motion targets such as landmarks, head pose, or expression features
@@ -227,6 +227,7 @@ This is the current working-state tracker. Update it whenever repository state o
 - `#14` motion evaluation pipeline
 - `#15` docs model-pipeline handoff update
 - The predicted-template rendering branch merged through PR `#16`, which put the actual render bridge onto `main`.
+- The predicted-render round-trip branch merged through PR `#17`, which put the local Bowdoin fetch workflow onto `main`.
 - Verified Bowdoin scratch outputs from those PRs now include:
 - sequence inspection against `/mnt/hpc/tmp/kelsedfy/video-persona-gen/data/processed/smoke_preprocess/manifest.jsonl`
 - GRU smoke checkpoints under `/mnt/hpc/tmp/kelsedfy/video-persona-gen/verifications/gru-motion-training.eXMSL3/checkpoints/`
@@ -241,12 +242,16 @@ This is the current working-state tracker. Update it whenever repository state o
 - verified rendered files:
 - `/mnt/hpc/tmp/kelsedfy/video-persona-gen/render_predicted_motion/predicted-template-rendering-pro6000.ryrmmL/renders/smoke_preprocess/d0_tone/000000--predicted_motion_template.mp4`
 - `/mnt/hpc/tmp/kelsedfy/video-persona-gen/render_predicted_motion/predicted-template-rendering-pro6000.ryrmmL/renders/smoke_preprocess/d0_tone/000000--predicted_motion_template_concat.mp4`
-- Current round-trip branch notes:
-- current branch: `feat/predicted-render-roundtrip`
+- Current round-trip notes:
 - verified Bowdoin job `63791` submitted through `scripts/run_bowdoin_predicted_render_roundtrip.sh`
 - verified remote output root: `/mnt/hpc/tmp/kelsedfy/video-persona-gen/render_predicted_motion/predicted-render-20260705-115732-6847`
 - verified local download root: `outputs/bowdoin_predicted_render/job-63791/`
 - verified local rendered files:
 - `outputs/bowdoin_predicted_render/job-63791/renders/smoke_preprocess/d0_tone/000000--predicted_motion_template.mp4`
 - `outputs/bowdoin_predicted_render/job-63791/renders/smoke_preprocess/d0_tone/000000--predicted_motion_template_concat.mp4`
+- Current manifest-preparation branch notes:
+- current branch: `feat/bowdoin-manifest-pipeline`
+- verified Bowdoin job `63792` ran `slurm/prepare_dataset_manifest.sbatch` against `/mnt/hpc/tmp/kelsedfy/video-persona-gen/data/processed/smoke_preprocess/manifest.jsonl`
+- verified stage order: `extract_motion.py` -> `create_splits.py` -> `extract_audio_features.py` -> `extract_motion_features.py`
+- verified refreshed artifacts stayed in place under `/mnt/hpc/tmp/kelsedfy/video-persona-gen/data/processed/smoke_preprocess/d0_tone/`
 - Future sessions should play a local completion sound when a task is finished.

@@ -208,6 +208,24 @@ bash scripts/fetch_bowdoin_predicted_render_output.sh \
   --local-dir outputs/bowdoin_predicted_render/job-63790
 ```
 
+To prepare one processed identity manifest for training on Bowdoin in a single tracked job, run:
+
+```bash
+MANIFEST_PATH=/mnt/hpc/tmp/<user>/video-persona-gen/data/processed/self_001/manifest.jsonl \
+OVERWRITE_AUDIO_FEATURES=1 \
+OVERWRITE_MOTION_FEATURES=1 \
+sbatch slurm/prepare_dataset_manifest.sbatch
+```
+
+That job runs, in order:
+
+- `scripts/extract_motion.py`
+- `scripts/create_splits.py`
+- `scripts/extract_audio_features.py`
+- `scripts/extract_motion_features.py`
+
+It reuses the persisted LivePortrait weights from `/mnt/hpc/tmp/<user>/video-persona-gen/liveportrait_weights` and refreshes the identity-level `manifest.jsonl` plus `dataset_report.json` in place.
+
 ## Notes
 
 - LivePortrait itself still expects its own upstream environment and pretrained weights in the external checkout.
