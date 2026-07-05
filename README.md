@@ -88,6 +88,14 @@ python scripts/extract_motion.py \
   --python-executable python
 ```
 
+Assign train/val/test splits for one processed identity:
+
+```bash
+python scripts/create_splits.py \
+  --identity-id self_001 \
+  --processed-root data/processed
+```
+
 Run the LivePortrait wrapper against an official checkout:
 
 ```bash
@@ -136,4 +144,5 @@ bash scripts/fetch_bowdoin_liveportrait_output.sh \
 - `ffmpeg` and `ffprobe` are required by upstream LivePortrait and by the later preprocessing pipeline.
 - The preprocessing path writes clip outputs under `data/processed/<identity_id>/<clip_id>/` with `audio.wav`, `face_crops/`, `frame_metadata.json`, `metadata.json`, and an identity-level `manifest.jsonl`.
 - The motion-extraction path writes `motion_template.pkl` back into each processed clip directory and refreshes the manifest’s `motion_template_path` field.
+- The dataset-loading path can now read manifest-backed clip records, load clip/frame metadata, load motion templates, and rewrite clip splits through `scripts/create_splits.py`.
 - The LivePortrait integration is intended to remain a thin wrapper around an external checkout instead of vendoring that project into this repository.

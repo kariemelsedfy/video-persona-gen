@@ -7,7 +7,7 @@ This is the current working-state tracker. Update it whenever repository state o
 - Date: July 4, 2026
 - Phase: Bowdoin storage hardening and preprocessing pipeline implementation
 - Branch: `docs/hpc-access-context`
-- Overall state: the Bowdoin remote environment can complete a real upstream LivePortrait inference job while reusing persistent weights from `/mnt/hpc/tmp/kelsedfy/video-persona-gen/liveportrait_weights`, the durable scratch layout is now verified end to end, and the repo contains a first real preprocessing path that has already passed a Bowdoin smoke test on a synthetic audio-backed sample clip
+- Overall state: the Bowdoin remote environment can complete a real upstream LivePortrait inference job while reusing persistent weights from `/mnt/hpc/tmp/kelsedfy/video-persona-gen/liveportrait_weights`, the durable scratch layout is verified end to end, processed clips can now produce real motion templates, and the repo now has a first real manifest-backed dataset/split layer for downstream training code
 
 ## Completed
 
@@ -35,6 +35,9 @@ This is the current working-state tracker. Update it whenever repository state o
 - Verified the updated persistent-storage LivePortrait round-trip flow with two Bowdoin jobs: the first populated `/mnt/hpc/tmp/kelsedfy/video-persona-gen/liveportrait_weights`, and the second explicitly reused those persisted weights instead of redownloading them.
 - Implemented a real motion-template extraction path that stages a working driving video, invokes upstream LivePortrait to generate its native `.pkl` template, copies that template into the processed clip directory, updates `metadata.json`, and refreshes `manifest.jsonl`.
 - Added `scripts/extract_motion.py`, replaced the placeholder `slurm/extract_motion.sbatch`, and added a unit-style smoke test for metadata/manifest refresh at `tests/test_motion_template_extraction.py`.
+- Implemented manifest-backed dataset loading utilities in `src/avagen/data/dataset.py`, including record loading, clip metadata loading, frame metadata loading, and motion-template loading.
+- Implemented split utilities in `src/avagen/data/splits.py` and added `scripts/create_splits.py` to assign train/val/test splits back into clip metadata and regenerate the manifest/report.
+- Added dataset and split smoke tests at `tests/test_dataset_loading.py` and `tests/test_split_assignment.py`.
 
 ## Current Reality
 
@@ -44,6 +47,7 @@ This is the current working-state tracker. Update it whenever repository state o
 - Face tracking is still a minimal OpenCV Haar-cascade baseline with fallback cropping; landmarks, head pose, expressions, and motion templates are still unimplemented.
 - Face tracking is still a minimal OpenCV Haar-cascade baseline with fallback cropping, and landmarks/head pose/expressions are still unimplemented.
 - Motion templates are now implemented through upstream LivePortrait and stored per clip as `motion_template.pkl`.
+- Dataset consumption is now no longer stubbed for the manifest layer: processed clip records can be loaded and filtered by split, and clip-level split assignments can be rewritten deterministically.
 - This shell currently does not have `ffmpeg`, `huggingface-cli`, `git-lfs`, or `pytest`, so full upstream LivePortrait validation and normal pytest execution were not completed here.
 - Bowdoin now has a confirmed durable layout for this project:
   - weights: `/mnt/hpc/tmp/kelsedfy/video-persona-gen/liveportrait_weights`
@@ -131,6 +135,10 @@ This is the current working-state tracker. Update it whenever repository state o
   - the generated template landed at `/mnt/hpc/tmp/kelsedfy/video-persona-gen/data/processed/smoke_preprocess/d0_tone/motion_template.pkl`
   - the template file size was `86025` bytes
   - both `metadata.json` and `manifest.jsonl` now include the `motion_template_path`
+- Ran a local dataset/split smoke test against a synthetic two-clip manifest:
+  - `ProcessedClipDataset` loaded both clips with `require_motion_template=True`
+  - `assign_clip_splits(..., seed=1)` produced one `train` clip and one `test` clip for the two-clip case
+  - `apply_split_assignments(...)` rewrote the clip `metadata.json` files and refreshed `manifest.jsonl` plus `dataset_report.json`
 
 ## Next Recommended Step
 
@@ -139,7 +147,7 @@ This is the current working-state tracker. Update it whenever repository state o
 - Keep `/mnt/hpc/tmp/<user>/video-persona-gen/liveportrait_weights` as the canonical Bowdoin weight cache and stop redownloading weights per run.
 - Decide whether to keep password-based automation or convert the verified workflow to SSH keys for a cleaner long-term setup.
 - Investigate the `onnxruntime-gpu` CUDA-provider mismatch (`libcublasLt.so.11` missing) so the ONNX subcomponents use GPU acceleration on Bowdoin instead of falling back noisily.
-- After one real clip preprocesses cleanly, implement the next layer of derived features after motion templates: landmarks, head pose, or expression features.
+- After one real clip preprocesses cleanly, implement the next actual model-input feature layer after motion templates: audio features, landmarks/head pose, or expression features.
 
 ## Handoff Notes
 
@@ -169,4 +177,5 @@ This is the current working-state tracker. Update it whenever repository state o
   - `63752`: second persistent-storage LivePortrait run; reused the durable weight cache and persisted run artifacts under `/mnt/hpc/tmp/kelsedfy/video-persona-gen/liveportrait_runs/63752`
   - `63754`: GPU smoke test for the new motion-template extraction path; produced `motion_template.pkl` and refreshed the processed sample manifest
 - The current remote recipe is: keep the existing Bowdoin env in home, stage the LivePortrait checkout copy under node-local `/tmp` for runtime, and persist reusable weights plus fetched artifacts under `/mnt/hpc/tmp/<user>/video-persona-gen`.
+- The current local data recipe is: `preprocess_dataset.py` -> `extract_motion.py` -> `create_splits.py` -> future audio/motion feature extraction and training loaders.
 - Future sessions should play a local completion sound when a task is finished.
