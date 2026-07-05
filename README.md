@@ -146,6 +146,16 @@ python scripts/run_liveportrait_inference.py \
   --output-dir outputs/samples/liveportrait_demo
 ```
 
+Render a model-predicted motion template back through LivePortrait:
+
+```bash
+python scripts/render_predicted_motion.py \
+  --config configs/render_predicted_motion.yaml \
+  --checkpoint experiments/exp_004_audio_to_motion_gru/checkpoints/best.pt \
+  --manifest-path data/processed/self_001/manifest.jsonl \
+  --liveportrait-root external/LivePortrait
+```
+
 On July 4, 2026, the upstream `readme.md` command that appends `"README.md" "docs"` after `huggingface-cli download` only fetched those paths on the current CLI. The full-repo `hf download ... --local-dir ...` form above is the working command we validated on Bowdoin HPC.
 
 For Bowdoin HPC specifically, the durable scratch root is now `/mnt/hpc/tmp/<user>/video-persona-gen`. The tracked `slurm/liveportrait_infer_tmp.sbatch` job still stages runtime work under node-local `/tmp`, but it now reuses persistent LivePortrait weights from that scratch root and copies logs plus outputs back there automatically.
@@ -183,4 +193,5 @@ bash scripts/fetch_bowdoin_liveportrait_output.sh \
 - The audio-feature path writes `audio_features.npz` and `prosody_summary.json` back into each processed clip directory and refreshes the manifest with `audio_features_path` plus `prosody_summary_path`.
 - The motion-feature path writes `motion_features.npz` and `motion_summary.json` back into each processed clip directory and refreshes the manifest with `motion_features_path` plus `motion_summary_path`.
 - The aligned sequence dataset path can now interpolate audio features onto motion-frame timestamps, inspect those sequences from the CLI, and feed the first GRU baseline trainer.
+- The predicted-motion render path can now take a trained checkpoint, emit `predicted_motion_template.pkl`, and feed that template directly back into upstream LivePortrait for an actual rendered output video.
 - The LivePortrait integration is intended to remain a thin wrapper around an external checkout instead of vendoring that project into this repository.

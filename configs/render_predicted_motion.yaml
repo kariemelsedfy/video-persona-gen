@@ -1,0 +1,12 @@
+checkpoint: experiments/exp_004_audio_to_motion_gru/checkpoints/best.pt
+model_config: configs/train_motion_gru.yaml
+manifest_path: data/processed/self_001/manifest.jsonl
+output_root: outputs/render_predicted_motion
+predicted_output_root: null
+liveportrait_root: external/LivePortrait
+inference_script: inference.py
+python_executable: python
+source: null
+clip_ids: []
+device: auto
+extra_args: []
