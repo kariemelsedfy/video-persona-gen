@@ -64,6 +64,12 @@ pip install -r requirements.txt
 pip install -e .
 ```
 
+For motion-model training, install the optional training extra in an environment that already has compatible PyTorch wheels:
+
+```bash
+pip install -e .[train]
+```
+
 Inspect a video:
 
 ```bash
@@ -107,6 +113,21 @@ Extract numeric motion features from `motion_template.pkl` files:
 
 ```bash
 python scripts/extract_motion_features.py \
+  --manifest-path data/processed/self_001/manifest.jsonl
+```
+
+Inspect the aligned audio-motion training sequences that come out of the feature pipeline:
+
+```bash
+python scripts/inspect_sequence_dataset.py \
+  --manifest-path data/processed/self_001/manifest.jsonl
+```
+
+Train the first GRU audio-to-motion baseline:
+
+```bash
+python scripts/train_motion.py \
+  --config configs/train_motion_gru.yaml \
   --manifest-path data/processed/self_001/manifest.jsonl
 ```
 
@@ -161,4 +182,5 @@ bash scripts/fetch_bowdoin_liveportrait_output.sh \
 - The dataset-loading path can now read manifest-backed clip records, load clip/frame metadata, load motion templates, and rewrite clip splits through `scripts/create_splits.py`.
 - The audio-feature path writes `audio_features.npz` and `prosody_summary.json` back into each processed clip directory and refreshes the manifest with `audio_features_path` plus `prosody_summary_path`.
 - The motion-feature path writes `motion_features.npz` and `motion_summary.json` back into each processed clip directory and refreshes the manifest with `motion_features_path` plus `motion_summary_path`.
+- The aligned sequence dataset path can now interpolate audio features onto motion-frame timestamps, inspect those sequences from the CLI, and feed the first GRU baseline trainer.
 - The LivePortrait integration is intended to remain a thin wrapper around an external checkout instead of vendoring that project into this repository.
