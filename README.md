@@ -253,6 +253,26 @@ That job runs, in order:
 
 It reuses the persisted LivePortrait weights from `/mnt/hpc/tmp/<user>/video-persona-gen/liveportrait_weights` and refreshes the identity-level `manifest.jsonl` plus `dataset_report.json` in place.
 
+To submit that same manifest-preparation job from a fresh Bowdoin scratch clone and fetch a local inspection bundle when it finishes, use:
+
+```bash
+bash scripts/run_bowdoin_prepare_manifest_roundtrip.sh \
+  --manifest-path /mnt/hpc/tmp/<user>/video-persona-gen/data/processed/hdtf_cmr/manifest.jsonl \
+  --mem 64G \
+  --overwrite-motion-templates \
+  --overwrite-audio-features \
+  --overwrite-motion-features
+```
+
+That wrapper:
+
+- clones the requested Git ref into Bowdoin scratch before submission, so it does not depend on the dirty home checkout
+- passes the remote upstream LivePortrait checkout explicitly, which a fresh clone does not contain
+- submits `slurm/prepare_dataset_manifest.sbatch`
+- polls Slurm from the local side until the job finishes
+- downloads a small inspection bundle into `outputs/bowdoin_prepare_manifest/job-<jobid>/`
+- leaves the refreshed processed identity in place under `/mnt/hpc/tmp/<user>/video-persona-gen/data/processed/<identity>/`
+
 ## Notes
 
 - LivePortrait itself still expects its own upstream environment and pretrained weights in the external checkout.
