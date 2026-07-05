@@ -3,10 +3,18 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
+import sys
 from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+SRC_ROOT = REPO_ROOT / "src"
+if str(SRC_ROOT) not in sys.path:
+    sys.path.insert(0, str(SRC_ROOT))
+
+from avagen.data.manifests import refresh_identity_manifest
+from avagen.data.preprocessing import PreprocessConfig, preprocess_clip
 
 
 def parse_args() -> argparse.Namespace:
@@ -30,23 +38,58 @@ def parse_args() -> argparse.Namespace:
         help="Fail if a face is not detected and no previous box is available.",
     )
     parser.add_argument("--overwrite", action="store_true", help="Allow overwriting an existing clip directory.")
+    parser.add_argument(
+        "--skip-manifest-refresh",
+        action="store_true",
+        help="Only preprocess clips and do not regenerate the identity manifest.",
+    )
     return parser.parse_args()
+
+
+def _slugify_clip_id(value: str) -> str:
+    slug = re.sub(r"[^a-zA-Z0-9]+", "_", value.strip().lower()).strip("_")
+    return slug or "clip"
 
 
 def main() -> int:
     args = parse_args()
     identity_dir = args.output_root / args.identity_id
+    if args.clip_id and len(args.input) != 1:
+        raise ValueError("--clip-id may only be provided when preprocessing exactly one input clip.")
+
+    results = []
+    for index, raw_input in enumerate(args.input):
+        input_path = Path(raw_input)
+        clip_id = args.clip_id if args.clip_id else _slugify_clip_id(input_path.stem)
+        if not args.clip_id and len(args.input) > 1:
+            clip_id = f"{clip_id}_{index:03d}"
+
+        results.append(
+            preprocess_clip(
+                PreprocessConfig(
+                    input_path=input_path,
+                    identity_id=args.identity_id,
+                    clip_id=clip_id,
+                    output_root=args.output_root,
+                    target_fps=args.fps,
+                    audio_sample_rate=args.audio_sample_rate,
+                    split=args.split,
+                    face_margin=args.face_margin,
+                    allow_center_crop_fallback=not args.disable_center_crop_fallback,
+                    overwrite=args.overwrite,
+                )
+            )
+        )
+
     payload = {
-        "status": "skeleton",
-        "script": "preprocess_dataset",
-        "identity_dir": str(identity_dir),
-        "inputs": args.input,
-        "requested_clip_id": args.clip_id,
-        "target_fps": args.fps,
-        "audio_sample_rate": args.audio_sample_rate,
-        "split": args.split,
-        "next_step": "Implement avagen.data.preprocessing.preprocess_clip and manifest generation.",
+        "identity_dir": str(identity_dir.resolve()),
+        "processed_clips": results,
     }
+    if not args.skip_manifest_refresh:
+        records, manifest_output, report_output = refresh_identity_manifest(identity_dir)
+        payload["manifest_path"] = str(manifest_output)
+        payload["report_path"] = str(report_output)
+        payload["num_manifest_records"] = len(records)
     print(json.dumps(payload, indent=2, sort_keys=True))
     return 0
 

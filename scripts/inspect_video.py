@@ -3,7 +3,15 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+SRC_ROOT = REPO_ROOT / "src"
+if str(SRC_ROOT) not in sys.path:
+    sys.path.insert(0, str(SRC_ROOT))
+
+from avagen.utils.video import inspect_video
 
 
 def parse_args() -> argparse.Namespace:
@@ -15,12 +23,7 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
-    payload = {
-        "status": "skeleton",
-        "script": "inspect_video",
-        "videos": args.videos,
-        "next_step": "Implement avagen.utils.video.inspect_video.",
-    }
+    payload = {"videos": [inspect_video(video).to_dict() for video in args.videos]}
 
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)

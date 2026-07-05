@@ -23,6 +23,8 @@ Optional:
   --cpus              CPUs per task override. Default: 2
   --mem               Memory override. Default: 32G
   --time              Time limit override. Default: 01:00:00
+  --remote-storage-root  Persistent Bowdoin storage root. Default: /mnt/hpc/tmp/<user>/video-persona-gen
+  --persist-weights-dir  Persistent Bowdoin LivePortrait weights directory. Default: <remote-storage-root>/liveportrait_weights
   --remote-user       Remote HPC username. Defaults to BOWDOIN_HPC_USER from .env.hpc.local.
 EOF
 }
@@ -43,6 +45,8 @@ partition="gpu"
 cpus="2"
 mem="32G"
 time_limit="01:00:00"
+remote_storage_root=""
+persist_weights_dir=""
 remote_user=""
 
 while [[ $# -gt 0 ]]; do
@@ -95,6 +99,14 @@ while [[ $# -gt 0 ]]; do
       time_limit="${2:?missing value for --time}"
       shift 2
       ;;
+    --remote-storage-root)
+      remote_storage_root="${2:?missing value for --remote-storage-root}"
+      shift 2
+      ;;
+    --persist-weights-dir)
+      persist_weights_dir="${2:?missing value for --persist-weights-dir}"
+      shift 2
+      ;;
     --remote-user)
       remote_user="${2:?missing value for --remote-user}"
       shift 2
@@ -124,6 +136,14 @@ if [[ -z "$remote_user" ]]; then
   exit 1
 fi
 
+if [[ -z "$remote_storage_root" ]]; then
+  remote_storage_root="/mnt/hpc/tmp/${remote_user}/video-persona-gen"
+fi
+
+if [[ -z "$persist_weights_dir" ]]; then
+  persist_weights_dir="$remote_storage_root/liveportrait_weights"
+fi
+
 job_script_path="$repo_root/$job_script"
 if [[ ! -f "$job_script_path" ]]; then
   echo "Local job script not found: $job_script_path" >&2
@@ -148,6 +168,8 @@ SOURCE_REL=$(shell_quote "$source_rel") \
 DRIVING_REL=$(shell_quote "$driving_rel") \
 FETCH_WAIT_SECONDS=$(shell_quote "$fetch_wait_seconds") \
 REPO_ROOT=$(shell_quote "$remote_repo_root") \
+REMOTE_STORAGE_ROOT=$(shell_quote "$remote_storage_root") \
+PERSIST_WEIGHTS_DIR=$(shell_quote "$persist_weights_dir") \
 sbatch --parsable \
   -J $(shell_quote "$job_name") \
   -p $(shell_quote "$partition") \
@@ -174,5 +196,10 @@ fi
 
 echo "Submitted Bowdoin job $job_id"
 echo "Local download target: $local_dir"
+echo "Remote storage root: $remote_storage_root"
 
-"$fetch_script" --job-id "$job_id" --local-dir "$local_dir" --remote-user "$remote_user"
+"$fetch_script" \
+  --job-id "$job_id" \
+  --local-dir "$local_dir" \
+  --remote-user "$remote_user" \
+  --remote-storage-root "$remote_storage_root"
