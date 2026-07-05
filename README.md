@@ -70,7 +70,7 @@ Inspect a video stub:
 python scripts/inspect_video.py path/to/clip.mp4
 ```
 
-Preprocess a single clip stub:
+Preprocess a single talking-head clip into audio, crops, metadata, and a manifest:
 
 ```bash
 python scripts/preprocess_dataset.py \
@@ -95,7 +95,7 @@ python scripts/run_liveportrait_inference.py \
 
 On July 4, 2026, the upstream `readme.md` command that appends `"README.md" "docs"` after `huggingface-cli download` only fetched those paths on the current CLI. The full-repo `hf download ... --local-dir ...` form above is the working command we validated on Bowdoin HPC.
 
-For Bowdoin HPC specifically, `slurm/liveportrait_infer_tmp.sbatch` is the tracked workaround for running a first real inference when home storage is full: it stages the checkout, weights, logs, and outputs under node-local `/tmp` and optionally copies outputs to `PERSIST_OUTPUT_DIR` if a durable path is available.
+For Bowdoin HPC specifically, the durable scratch root is now `/mnt/hpc/tmp/<user>/video-persona-gen`. The tracked `slurm/liveportrait_infer_tmp.sbatch` job still stages runtime work under node-local `/tmp`, but it now reuses persistent LivePortrait weights from that scratch root and copies logs plus outputs back there automatically.
 
 To round-trip a real Bowdoin run back onto this machine, use:
 
@@ -109,6 +109,7 @@ That wrapper:
 - syncs the local `slurm/liveportrait_infer_tmp.sbatch` to the remote Bowdoin repo before submission
 - keeps the remote job alive long enough for pickup
 - fetches `output/`, `hf.log`, `inference.log`, and `status.env` into `outputs/bowdoin_liveportrait/job-<jobid>/`
+- reuses Bowdoin weights from `/mnt/hpc/tmp/<user>/video-persona-gen/liveportrait_weights` instead of redownloading them every run
 - signals the remote job to exit after the local download is complete
 
 If you already have a running Bowdoin job in the pickup window, you can attach just the download phase:
@@ -123,4 +124,5 @@ bash scripts/fetch_bowdoin_liveportrait_output.sh \
 
 - LivePortrait itself still expects its own upstream environment and pretrained weights in the external checkout.
 - `ffmpeg` and `ffprobe` are required by upstream LivePortrait and by the later preprocessing pipeline.
+- The preprocessing path writes clip outputs under `data/processed/<identity_id>/<clip_id>/` with `audio.wav`, `face_crops/`, `frame_metadata.json`, `metadata.json`, and an identity-level `manifest.jsonl`.
 - The LivePortrait integration is intended to remain a thin wrapper around an external checkout instead of vendoring that project into this repository.
