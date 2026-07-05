@@ -1,0 +1,4 @@
+manifest_path: data/processed/self_001/manifest.jsonl
+frame_length_ms: 40.0
+hop_length_ms: 10.0
+clip_ids: []

@@ -96,6 +96,13 @@ python scripts/create_splits.py \
   --processed-root data/processed
 ```
 
+Extract simple framewise audio features and a prosody summary for processed clips:
+
+```bash
+python scripts/extract_audio_features.py \
+  --manifest-path data/processed/self_001/manifest.jsonl
+```
+
 Run the LivePortrait wrapper against an official checkout:
 
 ```bash
@@ -145,4 +152,5 @@ bash scripts/fetch_bowdoin_liveportrait_output.sh \
 - The preprocessing path writes clip outputs under `data/processed/<identity_id>/<clip_id>/` with `audio.wav`, `face_crops/`, `frame_metadata.json`, `metadata.json`, and an identity-level `manifest.jsonl`.
 - The motion-extraction path writes `motion_template.pkl` back into each processed clip directory and refreshes the manifest’s `motion_template_path` field.
 - The dataset-loading path can now read manifest-backed clip records, load clip/frame metadata, load motion templates, and rewrite clip splits through `scripts/create_splits.py`.
+- The audio-feature path writes `audio_features.npz` and `prosody_summary.json` back into each processed clip directory and refreshes the manifest with `audio_features_path` plus `prosody_summary_path`.
 - The LivePortrait integration is intended to remain a thin wrapper around an external checkout instead of vendoring that project into this repository.
