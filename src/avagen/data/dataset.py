@@ -21,6 +21,8 @@ class ProcessedClipRecord:
     motion_template_path: Path | None
     audio_features_path: Path | None
     prosody_summary_path: Path | None
+    motion_features_path: Path | None
+    motion_summary_path: Path | None
     fps: float
     duration_sec: float
     num_frames: int
@@ -85,6 +87,8 @@ def load_processed_clip_records(
                 motion_template_path=motion_template_path.resolve() if motion_template_path else None,
                 audio_features_path=_resolve_from_manifest(manifest, payload.get("audio_features_path")),
                 prosody_summary_path=_resolve_from_manifest(manifest, payload.get("prosody_summary_path")),
+                motion_features_path=_resolve_from_manifest(manifest, payload.get("motion_features_path")),
+                motion_summary_path=_resolve_from_manifest(manifest, payload.get("motion_summary_path")),
                 fps=float(payload.get("fps") or 0.0),
                 duration_sec=float(payload.get("duration_sec") or 0.0),
                 num_frames=int(payload.get("num_frames") or 0),
@@ -129,6 +133,17 @@ def load_audio_features(record: ProcessedClipRecord) -> dict[str, Any]:
     import numpy as np
 
     with np.load(record.audio_features_path, allow_pickle=False) as payload:
+        return {key: payload[key] for key in payload.files}
+
+
+def load_motion_features(record: ProcessedClipRecord) -> dict[str, Any]:
+    if record.motion_features_path is None:
+        raise FileNotFoundError(f"No motion features path recorded for clip {record.clip_id}")
+    if not record.motion_features_path.exists():
+        raise FileNotFoundError(f"Motion features not found: {record.motion_features_path}")
+    import numpy as np
+
+    with np.load(record.motion_features_path, allow_pickle=False) as payload:
         return {key: payload[key] for key in payload.files}
 
 

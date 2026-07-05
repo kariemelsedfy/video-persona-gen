@@ -6,6 +6,7 @@ from .dataset import (
     load_audio_features,
     load_clip_metadata,
     load_frame_metadata,
+    load_motion_features,
     load_motion_template,
     load_processed_clip_records,
 )
@@ -20,6 +21,7 @@ __all__ = [
     "load_audio_features",
     "load_clip_metadata",
     "load_frame_metadata",
+    "load_motion_features",
     "load_motion_template",
     "load_processed_clip_records",
 ]

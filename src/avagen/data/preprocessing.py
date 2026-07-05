@@ -110,6 +110,8 @@ def preprocess_clip(config: PreprocessConfig) -> dict[str, object]:
             "motion_template_path": None,
             "audio_features_path": None,
             "prosody_summary_path": None,
+            "motion_features_path": None,
+            "motion_summary_path": None,
         },
     }
     metadata_path = _write_json(clip_dir / "metadata.json", metadata)
