@@ -51,4 +51,6 @@ Read `CODEX_CONTEXT.md` when detailed architectural or research context is neede
 - Verified remote code workspace: `/home/kelsedfy/video-persona-gen`, with upstream LivePortrait staged at `/home/kelsedfy/video-persona-gen/external/LivePortrait`.
 - `moosehead` is a Slurm headnode for git, file, and job-submission work. Do not run Python workloads there directly; use Slurm or an approved interactive machine instead.
 - Verified remote LivePortrait environment path: `/home/kelsedfy/video-persona-gen/.conda/liveportrait`.
-- Current remaining remote blocker: Bowdoin home storage is at its hard quota, so direct downloads into `/home/kelsedfy/video-persona-gen/external/LivePortrait/pretrained_weights` and even home-backed Slurm logs can fail with `Disk quota exceeded`. The current working workaround is to stage weights, logs, and outputs under node-local `/tmp` inside a Slurm job.
+- Bowdoin home storage is still at its hard quota, so direct large writes into `/home/kelsedfy` remain unsafe.
+- Verified on July 4, 2026: `/mnt/hpc/tmp/kelsedfy` is writable, has about `32T` free on the backing Gluster filesystem, and is the current durable scratch root for this project.
+- The tracked Bowdoin jobs now use `/mnt/hpc/tmp/<user>/video-persona-gen` for persistent weights, logs, and outputs while still staging runtime work under node-local `/tmp`.

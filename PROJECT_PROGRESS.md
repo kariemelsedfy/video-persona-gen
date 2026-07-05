@@ -5,9 +5,9 @@ This is the current working-state tracker. Update it whenever repository state o
 ## Status
 
 - Date: July 4, 2026
-- Phase: LivePortrait remote inference validation
+- Phase: Bowdoin storage hardening and preprocessing pipeline implementation
 - Branch: `docs/hpc-access-context`
-- Overall state: `main` now contains the real LivePortrait wrapper path, the Bowdoin remote environment can complete a real upstream LivePortrait inference job, and the immediate blocker is durable remote storage because Bowdoin home quota exhaustion breaks both weight downloads and home-backed Slurm logs
+- Overall state: the Bowdoin remote environment can complete a real upstream LivePortrait inference job, `/mnt/hpc/tmp/kelsedfy` is now the validated durable scratch root for persistent weights and outputs, and the repo now contains a first real preprocessing path for turning a raw clip into audio, crops, metadata, and manifest entries
 
 ## Completed
 
@@ -28,12 +28,16 @@ This is the current working-state tracker. Update it whenever repository state o
 - Completed the first real upstream LivePortrait GPU run on Bowdoin by staging the checkout, weights, logs, and outputs entirely under node-local `/tmp` inside a Slurm job.
 - Added a tracked Bowdoin helper job at `slurm/liveportrait_infer_tmp.sbatch` that captures the working node-local `/tmp` inference recipe and supports optional output persistence through `PERSIST_OUTPUT_DIR`.
 - Added repo-local Bowdoin automation scripts that can submit a remote LivePortrait job, wait for a success status, download the output MP4s and logs back into the local repo, and then release the remote hold.
+- Verified that `/mnt/hpc/tmp/kelsedfy` is writable, currently almost empty, and backed by a filesystem with about `32T` free, then updated the Bowdoin job scripts to use `/mnt/hpc/tmp/kelsedfy/video-persona-gen` as the durable storage root.
+- Replaced the preprocessing stubs with a minimal real pipeline built on `ffprobe`, `ffmpeg`, and OpenCV: clip inspection, audio extraction, frame sampling, Haar-cascade face crops with center-crop fallback, metadata emission, and identity-level manifest/report generation.
+- Added a pure-Python manifest smoke test at `tests/test_manifest_generation.py`.
 
 ## Current Reality
 
 - `scripts/run_liveportrait_inference.py` and `src/avagen/renderers/liveportrait_wrapper.py` now implement a real external-checkout wrapper path.
-- `scripts/inspect_video.py`, `scripts/preprocess_dataset.py`, and `scripts/create_manifest.py` are still stubs.
-- The preprocessing, face tracking, audio extraction, and model-training modules are still placeholders or explicit stubs.
+- `scripts/inspect_video.py`, `scripts/preprocess_dataset.py`, and `scripts/create_manifest.py` now call real package code instead of returning skeleton JSON.
+- The preprocessing path now writes `audio.wav`, `face_crops/`, `frame_metadata.json`, `metadata.json`, `manifest.jsonl`, and `dataset_report.json`.
+- Face tracking is still a minimal OpenCV Haar-cascade baseline with fallback cropping; landmarks, head pose, expressions, and motion templates are still unimplemented.
 - This shell currently does not have `ffmpeg`, `huggingface-cli`, `git-lfs`, or `pytest`, so full upstream LivePortrait validation and normal pytest execution were not completed here.
 - There is an untracked local `LivePortrait/` directory in the working tree; treat it as local-only unless it is intentionally moved under the repo's expected `external/LivePortrait` path.
 - The preferred heavy-run target is Bowdoin HPC via `moosehead.bowdoin.edu`; off-campus access requires VPN and long jobs should use Slurm on `-p gpu` with explicit `--gres`, preferably `gpu:pro6000:1` when available.
@@ -60,6 +64,7 @@ This is the current working-state tracker. Update it whenever repository state o
 - The home-side `external/LivePortrait/pretrained_weights` tree is only a partial artifact with docs and incomplete cache files; it is not a usable weight directory.
 - A home-backed Slurm log can also fail mid-inference with `OSError: [Errno 122] Disk quota exceeded`, even after the node-local model download succeeds.
 - A node-local `/tmp` Slurm flow now works around both issues and completed a full upstream inference job on `moose63` with `--gres=gpu:rtx3080:1`.
+- `/mnt/hpc/tmp/kelsedfy` is writable and large enough to serve as the durable scratch root for this project, and the tracked Bowdoin scripts now default to `/mnt/hpc/tmp/<user>/video-persona-gen`.
 - `onnxruntime-gpu` emitted CUDA-provider load errors on the `rtx3080` run because `libcublasLt.so.11` was missing, but the overall job still completed successfully.
 - The verified round-trip scripts are:
   - `scripts/run_bowdoin_hpc_command.sh`
@@ -97,18 +102,19 @@ This is the current working-state tracker. Update it whenever repository state o
 - Verified the full submit-and-download workflow with job `63748`: the remote job completed successfully, the local fetch script pulled the output MP4s and logs into `outputs/bowdoin_liveportrait/verified-sample/`, and the final local artifacts were:
   - `outputs/bowdoin_liveportrait/verified-sample/output/s0--d0.mp4`
   - `outputs/bowdoin_liveportrait/verified-sample/output/s0--d0_concat.mp4`
+- Verified on Bowdoin that `/mnt/hpc/tmp/kelsedfy` is writable, has mode `drwxrwxr-x`, and sits on `gluster1.bowdoin.edu:/gv0` with roughly `32T` free.
+- Verified local shell syntax with `bash -n` for the updated Bowdoin scripts and `slurm` templates.
+- Verified Python compilation with `python3 -m compileall scripts src/avagen tests`.
+- Ran a local manifest smoke test against synthetic metadata using `PYTHONPATH=src python3 scripts/create_manifest.py --identity-id demo_id --processed-root <tmpdir>/data/processed`.
 
 ## Next Recommended Step
 
+- Run the first real clip through `scripts/preprocess_dataset.py` on a machine that has `ffmpeg`, `ffprobe`, and OpenCV installed.
+- Decide whether Bowdoin preprocessing should run directly in the existing repo env or in a dedicated preprocessing env separate from the LivePortrait env.
+- Use `/mnt/hpc/tmp/<user>/video-persona-gen/data/processed` as the default Bowdoin processed-data root and validate one mini-dataset clip end to end.
 - Decide whether to keep password-based automation or convert the verified workflow to SSH keys for a cleaner long-term setup.
-- Choose the runtime path for Python work: Slurm GPU job or approved interactive machine, not `moosehead`.
-- Resume from the existing remote env at `/home/kelsedfy/video-persona-gen/.conda/liveportrait`; do not recreate it from scratch unless it becomes corrupted.
-- Free Bowdoin home quota or arrange a durable non-home storage path for LivePortrait weights, logs, and outputs.
-- Use `slurm/liveportrait_infer_tmp.sbatch` as the canonical short-term Bowdoin run path while home storage remains full.
-- Use `scripts/run_bowdoin_liveportrait_roundtrip.sh` as the canonical local entrypoint when the goal is "submit a Bowdoin sample run and get the output back onto this machine."
-- Persist a usable weight tree under a durable path and point `external/LivePortrait/pretrained_weights` there via a symlink or documented setup step.
 - Investigate the `onnxruntime-gpu` CUDA-provider mismatch (`libcublasLt.so.11` missing) so the ONNX subcomponents use GPU acceleration on Bowdoin instead of falling back noisily.
-- After storage is fixed, rerun the successful inference path and copy the generated sample video into a durable repo-managed output or experiment artifact location.
+- After one clip preprocesses cleanly, implement the next layer of derived features: landmarks, head pose, expressions, or LivePortrait motion-template extraction.
 
 ## Handoff Notes
 
@@ -117,8 +123,10 @@ This is the current working-state tracker. Update it whenever repository state o
 - Remote authentication is now working from this machine with `.env.hpc.local`, and the reusable local skill lives at `~/.codex/skills/bowdoin-hpc-ssh`.
 - The remote code workspace and conda environment are ready, and the corrected weights command is `hf download KlingTeam/LivePortrait --local-dir ...`.
 - The real blocking issue is now Bowdoin home storage: direct downloads into the home workspace and home-backed Slurm logs can fail with `Disk quota exceeded`.
-- The tracked short-term workaround now lives at `slurm/liveportrait_infer_tmp.sbatch`.
+- The durable Bowdoin storage root is now `/mnt/hpc/tmp/kelsedfy/video-persona-gen`.
+- The tracked short-term runtime workaround still lives at `slurm/liveportrait_infer_tmp.sbatch`, but it now reuses persistent weights from `/mnt/hpc/tmp/<user>/video-persona-gen/liveportrait_weights`.
 - The verified local submit/fetch entrypoint now lives at `scripts/run_bowdoin_liveportrait_roundtrip.sh`.
+- The preprocessing entrypoints are no longer stubs; `scripts/preprocess_dataset.py` now emits real clip directories and refreshes the identity manifest by default.
 - Bowdoin Slurm job IDs from this session:
   - `63713`: successful `pro6000` GPU probe
   - `63715`: main-partition setup job; env and dependencies installed, failed at deprecated `huggingface-cli`
@@ -127,8 +135,8 @@ This is the current working-state tracker. Update it whenever repository state o
   - `63718`: prior `hf download` attempt
   - `63741`: corrected `hf download` into home workspace; failed with `Disk quota exceeded`
   - `63744`: first real inference attempt on `moose63`; reached frame generation and failed only because the home-backed Slurm log hit quota
-  - `63745`: node-local `/tmp` inference run on `moose63`; completed successfully with exit code `0`
+- `63745`: node-local `/tmp` inference run on `moose63`; completed successfully with exit code `0`
   - `63747`: first round-trip wrapper submission; remote run succeeded but exposed local fetch wrapper bugs
   - `63748`: verified round-trip workflow; remote run succeeded and local MP4/log download succeeded
-- The successful remote recipe is: keep the existing Bowdoin env in home, but stage the LivePortrait checkout copy, weights, runtime logs, and outputs under node-local `/tmp` inside the Slurm job.
+- The current remote recipe is: keep the existing Bowdoin env in home, stage the LivePortrait checkout copy under node-local `/tmp` for runtime, and persist reusable weights plus fetched artifacts under `/mnt/hpc/tmp/<user>/video-persona-gen`.
 - Future sessions should play a local completion sound when a task is finished.
