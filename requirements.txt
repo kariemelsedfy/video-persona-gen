@@ -1,5 +1,6 @@
 numpy>=1.24
-opencv-python>=4.8
+# opencv-python 5.0.0 dropped cv2.CascadeClassifier, which face_tracking.py depends on
+opencv-python>=4.8,<5
 PyYAML>=6.0
 tqdm>=4.66
 pytest>=8.0

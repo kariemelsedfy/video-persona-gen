@@ -5,9 +5,9 @@ This is the current working-state tracker. Update it whenever repository state o
 ## Status
 
 - Date: July 5, 2026
-- Phase: first model baseline merged, Bowdoin manifest-preparation job Bowdoin-verified
-- Branch: `feat/bowdoin-manifest-pipeline`
-- Overall state: `main` now contains the first complete model-side path on top of the Bowdoin preprocessing pipeline, including the predicted-render round-trip workflow, and the current branch adds a single tracked Slurm job that turns a processed identity manifest into a training-ready manifest by running motion extraction, split assignment, audio features, and motion features in order
+- Phase: first model baseline merged, Bowdoin manifest-preparation job Bowdoin-verified; first real (non-smoke) identity now preprocessed locally
+- Branch: `feat/hdtf-cmr-identity` (new branch off `main`; `feat/bowdoin-manifest-pipeline` work above is already merged/separate)
+- Overall state: `main` now contains the first complete model-side path on top of the Bowdoin preprocessing pipeline, including the predicted-render round-trip workflow, and the manifest-preparation Slurm job. The current branch adds the first non-synthetic dataset: three HDTF clips for identity `hdtf_cmr` have been downloaded, trimmed, and run through `scripts/preprocess_dataset.py` locally on the Mac (no Bowdoin involved yet). Motion extraction and everything downstream of it still needs Bowdoin and is intentionally left for the next session/agent.
 
 ## Completed
 
@@ -54,6 +54,11 @@ This is the current working-state tracker. Update it whenever repository state o
 - Implemented a predicted-template render bridge on the current branch through `src/avagen/renderers/video_renderer.py`, `scripts/render_predicted_motion.py`, `configs/render_predicted_motion.yaml`, and `slurm/render_predicted_motion.sbatch`, plus `tests/test_predicted_motion_rendering.py`.
 - Added Bowdoin predicted-render round-trip wrappers at `scripts/run_bowdoin_predicted_render_roundtrip.sh` and `scripts/fetch_bowdoin_predicted_render_output.sh` so persisted render outputs can be fetched into the local repo after Slurm completion.
 - Added `slurm/prepare_dataset_manifest.sbatch` so Bowdoin can prepare one processed identity manifest for training in a single tracked job.
+- Selected the first real (non-self-recorded) identity for pipeline validation: `hdtf_cmr` (Cathy McMorris Rodgers, from the HDTF "WRA" subset). Selection was data-driven, not a guess: pulled `WRA_annotion_time.txt`/`WRA_resolution.txt`/`WRA_video_url.txt` directly from `github.com/MRzzm/HDTF` (this repo had no HDTF metadata cached anywhere) and computed per-identity total annotated duration and session count. She has the most total speaking time among multi-session HDTF identities (1248.04s / 20.8 min across 3 distinct sessions), all three videos are from her own official congressional channel (checked via YouTube oEmbed titles/channel names, not just filenames). The runner-up by raw numbers, Roger Wicker (14.3 min, uniform 720p metadata), was rejected after the same oEmbed check showed his 3 clips come from three unrelated production contexts (a symposium, a memorial service, a third-party outlet), so the resolution match was coincidental, not a real consistent-setup signal.
+- Downloaded and trimmed the 3 source videos with `yt-dlp` + `ffmpeg` (both installed locally via Homebrew) directly to the HDTF annotation windows, keeping session1's three contiguous HDTF sub-intervals merged into one continuous clip (00:05-15:00) instead of 3 separate files, so each output clip maps 1:1 to one distinct recording session (matters for `create_splits.py`, which splits by `clip_id` with no session-grouping awareness). Raw output: `data/raw/hdtf_cmr/hdtf_cmr_session{0,1,2}.mp4` (243.02s, 895.0s, 110.03s — gitignored, not committed).
+- Updated `configs/preprocess_hdtf.yaml` with `identity_id: hdtf_cmr`, the 3 input paths, and a comment block recording the source YouTube URLs/trim windows for provenance (this file is documentation only — no script currently reads it; `scripts/preprocess_dataset.py` was invoked directly with matching flags).
+- Ran `scripts/preprocess_dataset.py --identity-id hdtf_cmr` locally (CPU-only: ffmpeg audio extraction + OpenCV Haar-cascade face crops, no LivePortrait/GPU/Bowdoin involved). Output: `data/processed/hdtf_cmr/` with 3 clip dirs (`hdtf_cmr_session0_000`, `_session1_001`, `_session2_002`), face-detection rates of 99.79%/99.96%/99.96%, `manifest.jsonl` (3 records), and `dataset_report.json` (`total_duration_sec: 1248.04`, `total_frames: 30193`, `splits: {train: 3}` — all 3 clips are currently labeled `train` only because that's `preprocess_dataset.py`'s single-pass default; real train/val/test assignment still needs `scripts/create_splits.py`, not run yet).
+- Set up a local `.venv` per the README quick start and hit a real environment bug: `opencv-python` just shipped `5.0.0`, which removed `cv2.CascadeClassifier` and broke `src/avagen/data/face_tracking.py` (`AttributeError: module 'cv2' has no attribute 'CascadeClassifier'`). Fixed by pinning `opencv-python>=4.8,<5` in `requirements.txt` (confirmed `4.11.0.86` works). This will bite any fresh `pip install -r requirements.txt` (including on Bowdoin) done before this pin lands there.
 
 ## Current Reality
 
@@ -176,19 +181,16 @@ This is the current working-state tracker. Update it whenever repository state o
 
 ## Next Recommended Step
 
-- First open and merge the current manifest-preparation branch:
-- `feat/bowdoin-manifest-pipeline` is now Bowdoin-verified and ready for PR merge
-- Then run the first real third-party or self-recorded talking-head mini-dataset through the full Bowdoin scratch pipeline:
-- `preprocess_dataset.py`
-- `slurm/prepare_dataset_manifest.sbatch`
-- `train_motion.py`
-- `predict_motion.py`
-- `evaluate_motion.py`
-- `run_bowdoin_predicted_render_roundtrip.sh`
-- Decide whether the next highest-value task is:
+- `data/processed/hdtf_cmr/` (3 clips, real HDTF footage, manifest + report already generated) is sitting locally on the Mac, ready to be synced to Bowdoin. It was intentionally preprocessed locally and NOT pushed through any Bowdoin step this session — that hand-off is for the next agent (Codex) to do.
+- Recommended next actions on Bowdoin, in order:
+- sync `data/raw/hdtf_cmr/` or `data/processed/hdtf_cmr/` to the durable scratch root (`/mnt/hpc/tmp/kelsedfy/video-persona-gen/data/processed/hdtf_cmr/`)
+- confirm the remote env's `opencv-python` is pinned `<5` per the `requirements.txt` fix above before re-running any face-crop step there
+- run `slurm/prepare_dataset_manifest.sbatch` against `.../data/processed/hdtf_cmr/manifest.jsonl` (runs `extract_motion.py` -> `create_splits.py` -> `extract_audio_features.py` -> `extract_motion_features.py`) — this is the first time that job will run against real (non-synthetic) multi-minute footage rather than the `smoke_preprocess` sample, so treat timing/memory as unverified at this scale
+- proceed to `train_motion.py` -> `predict_motion.py` -> `evaluate_motion.py` -> `run_bowdoin_predicted_render_roundtrip.sh` per the existing recipe
+- Separately, decide whether the next highest-value task is:
 - adding a single-command Bowdoin orchestration wrapper for the full preprocess-to-render pipeline
 - adding richer motion targets such as landmarks, head pose, or expression features
-- moving from smoke tests to the first nontrivial train/val experiment on a real mini-dataset
+- moving from smoke tests to the first nontrivial train/val experiment on the `hdtf_cmr` mini-dataset
 
 ## Handoff Notes
 

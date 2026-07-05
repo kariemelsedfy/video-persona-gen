@@ -9,6 +9,7 @@ __pycache__/
 *.pyd
 .pytest_cache/
 external/
+*.egg-info/
 
 data/raw/
 data/processed/
