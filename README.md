@@ -84,13 +84,39 @@ Run the LivePortrait wrapper against an official checkout:
 git clone https://github.com/KlingAIResearch/LivePortrait external/LivePortrait
 
 # Download weights into external/LivePortrait/pretrained_weights
-# See the official LivePortrait README for the current recommended command.
+hf download KlingTeam/LivePortrait --local-dir external/LivePortrait/pretrained_weights
 
 python scripts/run_liveportrait_inference.py \
   --config configs/render_liveportrait.yaml \
   --source assets/source_self.png \
   --driving path/to/driving.mp4 \
   --output-dir outputs/samples/liveportrait_demo
+```
+
+On July 4, 2026, the upstream `readme.md` command that appends `"README.md" "docs"` after `huggingface-cli download` only fetched those paths on the current CLI. The full-repo `hf download ... --local-dir ...` form above is the working command we validated on Bowdoin HPC.
+
+For Bowdoin HPC specifically, `slurm/liveportrait_infer_tmp.sbatch` is the tracked workaround for running a first real inference when home storage is full: it stages the checkout, weights, logs, and outputs under node-local `/tmp` and optionally copies outputs to `PERSIST_OUTPUT_DIR` if a durable path is available.
+
+To round-trip a real Bowdoin run back onto this machine, use:
+
+```bash
+bash scripts/run_bowdoin_liveportrait_roundtrip.sh
+```
+
+That wrapper:
+
+- submits `slurm/liveportrait_infer_tmp.sbatch`
+- syncs the local `slurm/liveportrait_infer_tmp.sbatch` to the remote Bowdoin repo before submission
+- keeps the remote job alive long enough for pickup
+- fetches `output/`, `hf.log`, `inference.log`, and `status.env` into `outputs/bowdoin_liveportrait/job-<jobid>/`
+- signals the remote job to exit after the local download is complete
+
+If you already have a running Bowdoin job in the pickup window, you can attach just the download phase:
+
+```bash
+bash scripts/fetch_bowdoin_liveportrait_output.sh \
+  --job-id 63748 \
+  --local-dir outputs/bowdoin_liveportrait/job-63748
 ```
 
 ## Notes
