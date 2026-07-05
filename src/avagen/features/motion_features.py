@@ -13,6 +13,18 @@ from avagen.data.manifests import refresh_identity_manifest
 from avagen.utils.paths import to_repo_relative
 
 
+MOTION_VECTOR_COMPONENT_NAMES = (
+    "scale",
+    "rotation_matrix",
+    "expression",
+    "translation",
+    "keypoints",
+    "source_keypoints",
+    "eye_ratio",
+    "lip_ratio",
+)
+
+
 def _stack_motion_field(motion_items: list[dict[str, Any]], key: str) -> np.ndarray:
     return np.concatenate([np.asarray(item[key], dtype=np.float32) for item in motion_items], axis=0)
 
@@ -82,6 +94,75 @@ def save_motion_feature_bundle(bundle: dict[str, Any], output_path: str | Path) 
     path.parent.mkdir(parents=True, exist_ok=True)
     np.savez(path, **bundle)
     return path
+
+
+def infer_motion_feature_layout(bundle: dict[str, Any]) -> list[dict[str, Any]]:
+    layout: list[dict[str, Any]] = []
+    start = 0
+    for name in MOTION_VECTOR_COMPONENT_NAMES:
+        if name not in bundle:
+            raise KeyError(f"Missing motion feature component '{name}'.")
+        component = np.asarray(bundle[name], dtype=np.float32)
+        component_shape = tuple(int(value) for value in component.shape[1:])
+        component_dim = int(np.prod(component_shape, dtype=np.int64)) if component_shape else 1
+        layout.append(
+            {
+                "name": name,
+                "shape": list(component_shape),
+                "start": start,
+                "end": start + component_dim,
+            }
+        )
+        start += component_dim
+    return layout
+
+
+def unflatten_motion_vector(motion_vector: np.ndarray, reference_bundle: dict[str, Any]) -> dict[str, Any]:
+    vector = np.asarray(motion_vector, dtype=np.float32)
+    if vector.ndim == 1:
+        vector = vector[None, :]
+    layout = infer_motion_feature_layout(reference_bundle)
+    expected_dim = int(layout[-1]["end"]) if layout else 0
+    if vector.shape[1] != expected_dim:
+        raise ValueError(f"Motion vector dim {vector.shape[1]} does not match expected dim {expected_dim}.")
+
+    bundle: dict[str, Any] = {
+        "output_fps": np.asarray(reference_bundle["output_fps"]).copy(),
+        "motion_vector": vector.astype(np.float32),
+    }
+    for item in layout:
+        start = int(item["start"])
+        end = int(item["end"])
+        shape = tuple(int(value) for value in item["shape"])
+        bundle[item["name"]] = vector[:, start:end].reshape((vector.shape[0], *shape)).astype(np.float32)
+    return bundle
+
+
+def motion_feature_bundle_to_template(bundle: dict[str, Any]) -> dict[str, Any]:
+    num_frames = int(np.asarray(bundle["motion_vector"]).shape[0])
+    motion_items = []
+    eye_ratio = np.asarray(bundle["eye_ratio"], dtype=np.float32)
+    lip_ratio = np.asarray(bundle["lip_ratio"], dtype=np.float32)
+
+    for frame_index in range(num_frames):
+        motion_items.append(
+            {
+                "scale": np.asarray(bundle["scale"][frame_index : frame_index + 1], dtype=np.float32),
+                "R": np.asarray(bundle["rotation_matrix"][frame_index : frame_index + 1], dtype=np.float32),
+                "exp": np.asarray(bundle["expression"][frame_index : frame_index + 1], dtype=np.float32),
+                "t": np.asarray(bundle["translation"][frame_index : frame_index + 1], dtype=np.float32),
+                "kp": np.asarray(bundle["keypoints"][frame_index : frame_index + 1], dtype=np.float32),
+                "x_s": np.asarray(bundle["source_keypoints"][frame_index : frame_index + 1], dtype=np.float32),
+            }
+        )
+
+    return {
+        "n_frames": num_frames,
+        "output_fps": int(np.asarray(bundle["output_fps"]).item()),
+        "motion": motion_items,
+        "c_eyes_lst": [eye_ratio[index : index + 1] for index in range(num_frames)],
+        "c_lip_lst": [lip_ratio[index : index + 1] for index in range(num_frames)],
+    }
 
 
 def extract_motion_features_for_manifest(
