@@ -3,6 +3,7 @@
 from .dataset import (
     ProcessedClipDataset,
     ProcessedClipRecord,
+    load_audio_features,
     load_clip_metadata,
     load_frame_metadata,
     load_motion_template,
@@ -16,6 +17,7 @@ __all__ = [
     "SplitAssignment",
     "apply_split_assignments",
     "assign_clip_splits",
+    "load_audio_features",
     "load_clip_metadata",
     "load_frame_metadata",
     "load_motion_template",

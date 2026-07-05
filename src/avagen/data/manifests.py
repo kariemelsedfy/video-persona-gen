@@ -27,6 +27,8 @@ class ManifestRecord:
     avg_roll_abs: float | None
     audio_sample_rate: int | None
     split: str
+    audio_features_path: str | None = None
+    prosody_summary_path: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -76,6 +78,8 @@ def refresh_identity_manifest(
             avg_roll_abs=None,
             audio_sample_rate=preprocessing.get("audio_sample_rate"),
             split=split,
+            audio_features_path=optional_artifacts.get("audio_features_path"),
+            prosody_summary_path=optional_artifacts.get("prosody_summary_path"),
         )
         records.append(record)
         split_counts[split] = split_counts.get(split, 0) + 1

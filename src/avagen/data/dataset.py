@@ -19,6 +19,8 @@ class ProcessedClipRecord:
     frame_metadata_path: Path
     metadata_path: Path
     motion_template_path: Path | None
+    audio_features_path: Path | None
+    prosody_summary_path: Path | None
     fps: float
     duration_sec: float
     num_frames: int
@@ -81,6 +83,8 @@ def load_processed_clip_records(
                 frame_metadata_path=frame_metadata_path.resolve(),
                 metadata_path=metadata_path.resolve(),
                 motion_template_path=motion_template_path.resolve() if motion_template_path else None,
+                audio_features_path=_resolve_from_manifest(manifest, payload.get("audio_features_path")),
+                prosody_summary_path=_resolve_from_manifest(manifest, payload.get("prosody_summary_path")),
                 fps=float(payload.get("fps") or 0.0),
                 duration_sec=float(payload.get("duration_sec") or 0.0),
                 num_frames=int(payload.get("num_frames") or 0),
@@ -115,6 +119,17 @@ def load_motion_template(record: ProcessedClipRecord) -> dict[str, Any]:
     if not isinstance(payload, dict):
         raise ValueError(f"Unexpected motion template payload for {record.motion_template_path}")
     return payload
+
+
+def load_audio_features(record: ProcessedClipRecord) -> dict[str, Any]:
+    if record.audio_features_path is None:
+        raise FileNotFoundError(f"No audio features path recorded for clip {record.clip_id}")
+    if not record.audio_features_path.exists():
+        raise FileNotFoundError(f"Audio features not found: {record.audio_features_path}")
+    import numpy as np
+
+    with np.load(record.audio_features_path, allow_pickle=False) as payload:
+        return {key: payload[key] for key in payload.files}
 
 
 class ProcessedClipDataset:
