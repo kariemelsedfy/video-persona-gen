@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=avagen-render-predicted-motion
 #SBATCH --partition=gpu
-#SBATCH --gres=gpu:rtx3080:1
+#SBATCH --gres=gpu:pro6000:1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32G
 #SBATCH --time=08:00:00
