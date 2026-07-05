@@ -72,7 +72,7 @@ def main() -> int:
             driving_path=args.driving.resolve(),
             output_dir=args.output_dir.resolve(),
             liveportrait_root=liveportrait_root.resolve(),
-            inference_script=inference_script.resolve() if inference_script else None,
+            inference_script=inference_script if inference_script else None,
             python_executable=str(_get_value(args, config_data, "python_executable", sys.executable)),
             source_flag=str(source_flag),
             driving_flag=str(driving_flag),

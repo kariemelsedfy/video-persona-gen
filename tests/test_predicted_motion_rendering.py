@@ -197,7 +197,7 @@ def test_render_predicted_motion_for_manifest(tmp_path: Path) -> None:
             manifest_path=manifest_path,
             output_root=output_root,
             liveportrait_root=liveportrait_root,
-            inference_script=inference_path,
+            inference_script=Path("inference.py"),
             python_executable="python3",
             device="cpu",
         )

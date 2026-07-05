@@ -79,7 +79,7 @@ def render_predicted_motion_for_manifest(config: PredictedMotionRenderConfig) ->
                 driving_path=Path(str(predicted_record["predicted_motion_template_path"])).expanduser().resolve(),
                 output_dir=output_dir,
                 liveportrait_root=config.liveportrait_root.expanduser().resolve(),
-                inference_script=config.inference_script.expanduser().resolve() if config.inference_script else None,
+                inference_script=config.inference_script if config.inference_script else None,
                 python_executable=config.python_executable,
                 extra_args=config.extra_args,
             )

@@ -81,7 +81,7 @@ def main() -> int:
             ),
             liveportrait_root=_get_required_path(args, config_data, "liveportrait_root"),
             inference_script=(
-                Path(str(_get_value(args, config_data, "inference_script"))).expanduser().resolve()
+                Path(str(_get_value(args, config_data, "inference_script"))).expanduser()
                 if _get_value(args, config_data, "inference_script") is not None
                 else None
             ),
