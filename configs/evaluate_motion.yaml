@@ -1,0 +1,6 @@
+manifest_path: data/processed/self_001/manifest.jsonl
+predicted_root: outputs/predicted_motion
+output_path: outputs/evaluations/motion_metrics.json
+evaluation:
+  clip_ids: []
+  skip_missing: false
