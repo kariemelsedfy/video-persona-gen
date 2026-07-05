@@ -5,8 +5,13 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=32G
 #SBATCH --time=04:00:00
-#SBATCH --output=outputs/logs/%x-%j.out
+#SBATCH --output=/tmp/%x-%j.out
 
 set -euo pipefail
 
-python scripts/preprocess_dataset.py "$@"
+REMOTE_STORAGE_ROOT="${REMOTE_STORAGE_ROOT:-/mnt/hpc/tmp/${USER}/video-persona-gen}"
+PROCESSED_ROOT="${PROCESSED_ROOT:-$REMOTE_STORAGE_ROOT/data/processed}"
+
+mkdir -p "$PROCESSED_ROOT"
+
+python scripts/preprocess_dataset.py --output-root "$PROCESSED_ROOT" "$@"

@@ -1,5 +1,7 @@
 identity_id: self_001
 manifest_path: data/processed/self_001/manifest.jsonl
+liveportrait_root: external/LivePortrait
+python_executable: python
+work_root: outputs/motion_template_work
 output_field: motion_template_path
-device: cuda
-batch_size: 1
+extra_args: []

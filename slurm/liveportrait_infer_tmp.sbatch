@@ -15,8 +15,26 @@ LIVEPORTRAIT_ROOT="${LIVEPORTRAIT_ROOT:-$REPO_ROOT/external/LivePortrait}"
 TMP_ROOT="${TMP_ROOT:-/tmp/${USER}/liveportrait-${SLURM_JOB_ID}}"
 SOURCE_REL="${SOURCE_REL:-assets/examples/source/s0.jpg}"
 DRIVING_REL="${DRIVING_REL:-assets/examples/driving/d0.mp4}"
-PERSIST_OUTPUT_DIR="${PERSIST_OUTPUT_DIR:-}"
 FETCH_WAIT_SECONDS="${FETCH_WAIT_SECONDS:-900}"
+
+DEFAULT_REMOTE_STORAGE_ROOT=""
+if [[ -d "/mnt/hpc/tmp/${USER}" && -w "/mnt/hpc/tmp/${USER}" ]]; then
+  DEFAULT_REMOTE_STORAGE_ROOT="/mnt/hpc/tmp/${USER}/video-persona-gen"
+fi
+
+REMOTE_STORAGE_ROOT="${REMOTE_STORAGE_ROOT:-$DEFAULT_REMOTE_STORAGE_ROOT}"
+PERSIST_OUTPUT_DIR="${PERSIST_OUTPUT_DIR:-}"
+PERSIST_WEIGHTS_DIR="${PERSIST_WEIGHTS_DIR:-}"
+
+if [[ -n "$REMOTE_STORAGE_ROOT" ]]; then
+  mkdir -p "$REMOTE_STORAGE_ROOT"
+  if [[ -z "$PERSIST_OUTPUT_DIR" ]]; then
+    PERSIST_OUTPUT_DIR="$REMOTE_STORAGE_ROOT/liveportrait_runs/${SLURM_JOB_ID}"
+  fi
+  if [[ -z "$PERSIST_WEIGHTS_DIR" ]]; then
+    PERSIST_WEIGHTS_DIR="$REMOTE_STORAGE_ROOT/liveportrait_weights"
+  fi
+fi
 
 PYTHON_BIN="$LIVEPORTRAIT_ENV/bin/python"
 HF_BIN="$LIVEPORTRAIT_ENV/bin/hf"
@@ -27,6 +45,21 @@ STAGED_ROOT="$TMP_ROOT/LivePortrait"
 STATUS_FILE="$TMP_ROOT/status.env"
 OUTPUT_FILES_LIST="$TMP_ROOT/output_files.txt"
 PICKUP_FILE="$TMP_ROOT/pickup.done"
+PERSIST_LOG_DIR=""
+PERSIST_OUTPUT_FILES_DIR=""
+PERSIST_STATUS_FILE=""
+PERSIST_HF_LOG=""
+PERSIST_INFER_LOG=""
+PERSIST_OUTPUT_FILES_LIST=""
+
+if [[ -n "$PERSIST_OUTPUT_DIR" ]]; then
+  PERSIST_LOG_DIR="$PERSIST_OUTPUT_DIR/logs"
+  PERSIST_OUTPUT_FILES_DIR="$PERSIST_OUTPUT_DIR/output"
+  PERSIST_STATUS_FILE="$PERSIST_LOG_DIR/status.env"
+  PERSIST_HF_LOG="$PERSIST_LOG_DIR/hf.log"
+  PERSIST_INFER_LOG="$PERSIST_LOG_DIR/inference.log"
+  PERSIST_OUTPUT_FILES_LIST="$PERSIST_LOG_DIR/output_files.txt"
+fi
 
 if [[ ! -x "$PYTHON_BIN" ]]; then
   echo "Missing python executable: $PYTHON_BIN" >&2
@@ -45,11 +78,14 @@ fi
 
 copy_persisted_outputs() {
   if [[ -n "$PERSIST_OUTPUT_DIR" ]]; then
-    mkdir -p "$PERSIST_OUTPUT_DIR" 2>/dev/null || true
+    mkdir -p "$PERSIST_LOG_DIR" "$PERSIST_OUTPUT_FILES_DIR" 2>/dev/null || true
     if [[ -d "$OUTPUT_DIR" ]]; then
-      cp -a "$OUTPUT_DIR"/. "$PERSIST_OUTPUT_DIR"/ 2>/dev/null || true
+      cp -a "$OUTPUT_DIR"/. "$PERSIST_OUTPUT_FILES_DIR"/ 2>/dev/null || true
     fi
-    cp "$HF_LOG" "$INFER_LOG" "$STATUS_FILE" "$OUTPUT_FILES_LIST" "$PERSIST_OUTPUT_DIR"/ 2>/dev/null || true
+    cp "$HF_LOG" "$PERSIST_HF_LOG" 2>/dev/null || true
+    cp "$INFER_LOG" "$PERSIST_INFER_LOG" 2>/dev/null || true
+    cp "$STATUS_FILE" "$PERSIST_STATUS_FILE" 2>/dev/null || true
+    cp "$OUTPUT_FILES_LIST" "$PERSIST_OUTPUT_FILES_LIST" 2>/dev/null || true
   fi
 }
 
@@ -79,8 +115,30 @@ DRIVING_PATH="$STAGED_ROOT/$DRIVING_REL"
 FAILED_STAGE="none"
 RUN_EXIT_CODE=0
 RUN_STATE="SUCCESS"
+WEIGHTS_DIR="$STAGED_ROOT/pretrained_weights"
+WEIGHTS_READY_MARKER=""
 
-if ! "$HF_BIN" download KlingTeam/LivePortrait --local-dir "$STAGED_ROOT/pretrained_weights" >"$HF_LOG" 2>&1; then
+if [[ -n "$PERSIST_WEIGHTS_DIR" ]]; then
+  mkdir -p "$(dirname "$PERSIST_WEIGHTS_DIR")"
+  WEIGHTS_DIR="$PERSIST_WEIGHTS_DIR"
+  WEIGHTS_READY_MARKER="$PERSIST_WEIGHTS_DIR/.hf-download-complete"
+fi
+
+if [[ -n "$PERSIST_WEIGHTS_DIR" ]]; then
+  if [[ -f "$WEIGHTS_READY_MARKER" ]]; then
+    printf 'Reusing persisted weights at %s\n' "$PERSIST_WEIGHTS_DIR" >"$HF_LOG"
+  else
+    rm -rf "$PERSIST_WEIGHTS_DIR"
+    if ! "$HF_BIN" download KlingTeam/LivePortrait --local-dir "$PERSIST_WEIGHTS_DIR" >"$HF_LOG" 2>&1; then
+      FAILED_STAGE="hf_download"
+      RUN_EXIT_CODE=$?
+      RUN_STATE="FAILURE"
+    else
+      touch "$WEIGHTS_READY_MARKER"
+    fi
+  fi
+  ln -s "$PERSIST_WEIGHTS_DIR" "$STAGED_ROOT/pretrained_weights"
+elif ! "$HF_BIN" download KlingTeam/LivePortrait --local-dir "$STAGED_ROOT/pretrained_weights" >"$HF_LOG" 2>&1; then
   FAILED_STAGE="hf_download"
   RUN_EXIT_CODE=$?
   RUN_STATE="FAILURE"
@@ -114,6 +172,11 @@ infer_log=$INFER_LOG
 output_files=$OUTPUT_FILES_LIST
 fetch_wait_seconds=$FETCH_WAIT_SECONDS
 persist_output_dir=$PERSIST_OUTPUT_DIR
+persist_log_dir=$PERSIST_LOG_DIR
+persist_output_files_dir=$PERSIST_OUTPUT_FILES_DIR
+persist_status_file=$PERSIST_STATUS_FILE
+remote_storage_root=$REMOTE_STORAGE_ROOT
+weights_dir=$WEIGHTS_DIR
 source_rel=$SOURCE_REL
 driving_rel=$DRIVING_REL
 EOF
@@ -127,6 +190,10 @@ echo "state=$RUN_STATE"
 if [[ -n "$PERSIST_OUTPUT_DIR" ]]; then
   echo "persist_output_dir=$PERSIST_OUTPUT_DIR"
 fi
+if [[ -n "$REMOTE_STORAGE_ROOT" ]]; then
+  echo "remote_storage_root=$REMOTE_STORAGE_ROOT"
+fi
+echo "weights_dir=$WEIGHTS_DIR"
 cat "$OUTPUT_FILES_LIST"
 
 wait_for_pickup
