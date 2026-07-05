@@ -27,6 +27,7 @@ This is the current working-state tracker. Update it whenever repository state o
 - Confirmed Bowdoin home storage is already at the hard limit (`20 GiB` soft quota, `25 GiB` hard limit / `25600M` used), which causes direct `hf download` runs into the home workspace to fail and can also crash inference when Rich flushes to a home-backed Slurm log.
 - Completed the first real upstream LivePortrait GPU run on Bowdoin by staging the checkout, weights, logs, and outputs entirely under node-local `/tmp` inside a Slurm job.
 - Added a tracked Bowdoin helper job at `slurm/liveportrait_infer_tmp.sbatch` that captures the working node-local `/tmp` inference recipe and supports optional output persistence through `PERSIST_OUTPUT_DIR`.
+- Added repo-local Bowdoin automation scripts that can submit a remote LivePortrait job, wait for a success status, download the output MP4s and logs back into the local repo, and then release the remote hold.
 
 ## Current Reality
 
@@ -60,6 +61,11 @@ This is the current working-state tracker. Update it whenever repository state o
 - A home-backed Slurm log can also fail mid-inference with `OSError: [Errno 122] Disk quota exceeded`, even after the node-local model download succeeds.
 - A node-local `/tmp` Slurm flow now works around both issues and completed a full upstream inference job on `moose63` with `--gres=gpu:rtx3080:1`.
 - `onnxruntime-gpu` emitted CUDA-provider load errors on the `rtx3080` run because `libcublasLt.so.11` was missing, but the overall job still completed successfully.
+- The verified round-trip scripts are:
+  - `scripts/run_bowdoin_hpc_command.sh`
+  - `scripts/fetch_bowdoin_liveportrait_output.sh`
+  - `scripts/run_bowdoin_liveportrait_roundtrip.sh`
+- The verified local sample output path is `outputs/bowdoin_liveportrait/verified-sample/output/`, containing `s0--d0.mp4` and `s0--d0_concat.mp4`.
 
 ## Verification
 
@@ -88,6 +94,9 @@ This is the current working-state tracker. Update it whenever repository state o
 - Inspected `sinfo -p gpu -o '%N %G %t'` and used the idle `rtx3080` capacity for the first successful inference run.
 - Verified that job `63744` reached real inference and failed only because Rich flushed to a home-backed Slurm log after reporting `The animated video consists of 78 frames`.
 - Verified that job `63745` completed with exit code `0` after running the Hugging Face download and `python inference.py -s assets/examples/source/s0.jpg -d assets/examples/driving/d0.mp4` entirely under node-local `/tmp`.
+- Verified the full submit-and-download workflow with job `63748`: the remote job completed successfully, the local fetch script pulled the output MP4s and logs into `outputs/bowdoin_liveportrait/verified-sample/`, and the final local artifacts were:
+  - `outputs/bowdoin_liveportrait/verified-sample/output/s0--d0.mp4`
+  - `outputs/bowdoin_liveportrait/verified-sample/output/s0--d0_concat.mp4`
 
 ## Next Recommended Step
 
@@ -96,6 +105,7 @@ This is the current working-state tracker. Update it whenever repository state o
 - Resume from the existing remote env at `/home/kelsedfy/video-persona-gen/.conda/liveportrait`; do not recreate it from scratch unless it becomes corrupted.
 - Free Bowdoin home quota or arrange a durable non-home storage path for LivePortrait weights, logs, and outputs.
 - Use `slurm/liveportrait_infer_tmp.sbatch` as the canonical short-term Bowdoin run path while home storage remains full.
+- Use `scripts/run_bowdoin_liveportrait_roundtrip.sh` as the canonical local entrypoint when the goal is "submit a Bowdoin sample run and get the output back onto this machine."
 - Persist a usable weight tree under a durable path and point `external/LivePortrait/pretrained_weights` there via a symlink or documented setup step.
 - Investigate the `onnxruntime-gpu` CUDA-provider mismatch (`libcublasLt.so.11` missing) so the ONNX subcomponents use GPU acceleration on Bowdoin instead of falling back noisily.
 - After storage is fixed, rerun the successful inference path and copy the generated sample video into a durable repo-managed output or experiment artifact location.
@@ -108,6 +118,7 @@ This is the current working-state tracker. Update it whenever repository state o
 - The remote code workspace and conda environment are ready, and the corrected weights command is `hf download KlingTeam/LivePortrait --local-dir ...`.
 - The real blocking issue is now Bowdoin home storage: direct downloads into the home workspace and home-backed Slurm logs can fail with `Disk quota exceeded`.
 - The tracked short-term workaround now lives at `slurm/liveportrait_infer_tmp.sbatch`.
+- The verified local submit/fetch entrypoint now lives at `scripts/run_bowdoin_liveportrait_roundtrip.sh`.
 - Bowdoin Slurm job IDs from this session:
   - `63713`: successful `pro6000` GPU probe
   - `63715`: main-partition setup job; env and dependencies installed, failed at deprecated `huggingface-cli`
@@ -117,5 +128,7 @@ This is the current working-state tracker. Update it whenever repository state o
   - `63741`: corrected `hf download` into home workspace; failed with `Disk quota exceeded`
   - `63744`: first real inference attempt on `moose63`; reached frame generation and failed only because the home-backed Slurm log hit quota
   - `63745`: node-local `/tmp` inference run on `moose63`; completed successfully with exit code `0`
+  - `63747`: first round-trip wrapper submission; remote run succeeded but exposed local fetch wrapper bugs
+  - `63748`: verified round-trip workflow; remote run succeeded and local MP4/log download succeeded
 - The successful remote recipe is: keep the existing Bowdoin env in home, but stage the LivePortrait checkout copy, weights, runtime logs, and outputs under node-local `/tmp` inside the Slurm job.
 - Future sessions should play a local completion sound when a task is finished.

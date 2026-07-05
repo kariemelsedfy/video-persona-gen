@@ -97,6 +97,28 @@ On July 4, 2026, the upstream `readme.md` command that appends `"README.md" "doc
 
 For Bowdoin HPC specifically, `slurm/liveportrait_infer_tmp.sbatch` is the tracked workaround for running a first real inference when home storage is full: it stages the checkout, weights, logs, and outputs under node-local `/tmp` and optionally copies outputs to `PERSIST_OUTPUT_DIR` if a durable path is available.
 
+To round-trip a real Bowdoin run back onto this machine, use:
+
+```bash
+bash scripts/run_bowdoin_liveportrait_roundtrip.sh
+```
+
+That wrapper:
+
+- submits `slurm/liveportrait_infer_tmp.sbatch`
+- syncs the local `slurm/liveportrait_infer_tmp.sbatch` to the remote Bowdoin repo before submission
+- keeps the remote job alive long enough for pickup
+- fetches `output/`, `hf.log`, `inference.log`, and `status.env` into `outputs/bowdoin_liveportrait/job-<jobid>/`
+- signals the remote job to exit after the local download is complete
+
+If you already have a running Bowdoin job in the pickup window, you can attach just the download phase:
+
+```bash
+bash scripts/fetch_bowdoin_liveportrait_output.sh \
+  --job-id 63748 \
+  --local-dir outputs/bowdoin_liveportrait/job-63748
+```
+
 ## Notes
 
 - LivePortrait itself still expects its own upstream environment and pretrained weights in the external checkout.
