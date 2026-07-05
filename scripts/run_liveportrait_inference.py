@@ -27,7 +27,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--liveportrait-root", type=Path, help="Path to the LivePortrait checkout.")
     parser.add_argument("--inference-script", type=Path, help="Optional explicit inference script path.")
     parser.add_argument("--source", type=Path, required=True, help="Source portrait image.")
-    parser.add_argument("--driving", type=Path, required=True, help="Driving video.")
+    parser.add_argument("--driving", type=Path, required=True, help="Driving video or motion template (.pkl).")
     parser.add_argument("--output-dir", type=Path, required=True, help="Output directory for generated assets.")
     parser.add_argument("--python-executable", default=None, help="Python executable for the LivePortrait run.")
     parser.add_argument("--source-flag", default=None, help="CLI flag name for the source image argument.")
@@ -72,7 +72,7 @@ def main() -> int:
             driving_path=args.driving.resolve(),
             output_dir=args.output_dir.resolve(),
             liveportrait_root=liveportrait_root.resolve(),
-            inference_script=inference_script.resolve() if inference_script else None,
+            inference_script=inference_script if inference_script else None,
             python_executable=str(_get_value(args, config_data, "python_executable", sys.executable)),
             source_flag=str(source_flag),
             driving_flag=str(driving_flag),

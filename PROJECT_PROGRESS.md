@@ -5,9 +5,9 @@ This is the current working-state tracker. Update it whenever repository state o
 ## Status
 
 - Date: July 5, 2026
-- Phase: first model baseline and motion-evaluation path merged and Bowdoin-verified
-- Branch: `docs/model-pipeline-handoff`
-- Overall state: `main` now contains the first complete model-side path on top of the Bowdoin preprocessing pipeline: aligned audio-motion sequence loading, a GRU motion-training baseline, checkpoint-driven motion prediction with reconstructed template outputs, and motion-bundle evaluation utilities; each code task was smoke-verified on Bowdoin scratch and merged through its own PR
+- Phase: first model baseline merged, predicted-template rendering bridge Bowdoin-verified
+- Branch: `feat/predicted-template-rendering`
+- Overall state: `main` now contains the first complete model-side path on top of the Bowdoin preprocessing pipeline, and the current pushed branch has now been smoke-verified on Bowdoin for the next bridge step: predict motion, convert it into a `.pkl` template, and feed that template back into upstream LivePortrait for a real rendered output video on a `pro6000` node
 
 ## Completed
 
@@ -51,6 +51,7 @@ This is the current working-state tracker. Update it whenever repository state o
 - Added checkpoint-driven motion prediction utilities in `src/avagen/inference/generate_motion.py` plus `scripts/predict_motion.py`, and added motion-vector reconstruction helpers in `src/avagen/features/motion_features.py` so predicted motion can be saved as both `predicted_motion_features.npz` and `predicted_motion_template.pkl`.
 - Added `tests/test_motion_prediction.py`.
 - Implemented motion evaluation metrics in `src/avagen/evaluation/motion_metrics.py`, added `scripts/evaluate_motion.py`, `configs/evaluate_motion.yaml`, and a Bowdoin-safe `slurm/evaluate.sbatch`, and added `tests/test_motion_evaluation.py`.
+- Implemented a predicted-template render bridge on the current branch through `src/avagen/renderers/video_renderer.py`, `scripts/render_predicted_motion.py`, `configs/render_predicted_motion.yaml`, and `slurm/render_predicted_motion.sbatch`, plus `tests/test_predicted_motion_rendering.py`.
 
 ## Current Reality
 
@@ -170,7 +171,10 @@ This is the current working-state tracker. Update it whenever repository state o
 
 ## Next Recommended Step
 
-- Run the first real third-party or self-recorded talking-head mini-dataset through the full Bowdoin scratch pipeline:
+- First open and merge the current rendering branch:
+- `feat/predicted-template-rendering` is now Bowdoin-verified and ready for PR merge
+- Then add a Bowdoin submit-and-fetch wrapper for `render_predicted_motion` so rendered validation outputs can be downloaded back into the local repo automatically
+- Then run the first real third-party or self-recorded talking-head mini-dataset through the full Bowdoin scratch pipeline:
 - `preprocess_dataset.py`
 - `extract_motion.py`
 - `create_splits.py`
@@ -219,10 +223,22 @@ This is the current working-state tracker. Update it whenever repository state o
 - `#12` GRU motion training baseline
 - `#13` motion prediction pipeline
 - `#14` motion evaluation pipeline
+- `#15` docs model-pipeline handoff update
+- The current pushed but unmerged rendering branch is `feat/predicted-template-rendering`.
 - Verified Bowdoin scratch outputs from those PRs now include:
 - sequence inspection against `/mnt/hpc/tmp/kelsedfy/video-persona-gen/data/processed/smoke_preprocess/manifest.jsonl`
 - GRU smoke checkpoints under `/mnt/hpc/tmp/kelsedfy/video-persona-gen/verifications/gru-motion-training.eXMSL3/checkpoints/`
 - predicted motion artifacts under `/mnt/hpc/tmp/kelsedfy/video-persona-gen/predicted_motion/prediction-smoke.WCxJtx/`
 - evaluation metrics from job `63777` against that predicted-motion root
 - The Bowdoin home-repo checkout at `/home/kelsedfy/video-persona-gen` is currently dirty from earlier work, so future remote verification should keep using fresh scratch clones under `/mnt/hpc/tmp/kelsedfy/video-persona-gen/verifications/` unless that home checkout is intentionally cleaned up.
+- Current rendering-branch notes:
+- local commits on `feat/predicted-template-rendering`: `cc56be2`, `d53e6c6`, `f6cfb77`
+- pushed remote branch: `origin/feat/predicted-template-rendering`
+- Bowdoin job `63778` reached upstream LivePortrait and failed on the `rtx3080` path with `torch.AcceleratorError: CUDA-capable device(s) is/are busy or unavailable`
+- Bowdoin job `63779` reran the same branch after the relative-path fix and reached the same upstream GPU-allocation failure point before the branch default was moved to `pro6000`
+- Bowdoin job `63790` reran the branch from a fresh scratch clone on `gpu:pro6000:1` and completed successfully
+- verified output root: `/mnt/hpc/tmp/kelsedfy/video-persona-gen/render_predicted_motion/predicted-template-rendering-pro6000.ryrmmL/`
+- verified rendered files:
+- `/mnt/hpc/tmp/kelsedfy/video-persona-gen/render_predicted_motion/predicted-template-rendering-pro6000.ryrmmL/renders/smoke_preprocess/d0_tone/000000--predicted_motion_template.mp4`
+- `/mnt/hpc/tmp/kelsedfy/video-persona-gen/render_predicted_motion/predicted-template-rendering-pro6000.ryrmmL/renders/smoke_preprocess/d0_tone/000000--predicted_motion_template_concat.mp4`
 - Future sessions should play a local completion sound when a task is finished.
