@@ -4,10 +4,10 @@ This is the current working-state tracker. Update it whenever repository state o
 
 ## Status
 
-- Date: July 4, 2026
-- Phase: Bowdoin storage hardening and preprocessing pipeline implementation
-- Branch: `docs/hpc-access-context`
-- Overall state: the Bowdoin remote environment can complete a real upstream LivePortrait inference job while reusing persistent weights from `/mnt/hpc/tmp/kelsedfy/video-persona-gen/liveportrait_weights`, the durable scratch layout is verified end to end, processed clips can now produce real motion templates plus both audio and motion feature artifacts, and the repo has a manifest-backed dataset/split layer for downstream training code
+- Date: July 5, 2026
+- Phase: first model baseline and motion-evaluation path merged and Bowdoin-verified
+- Branch: `docs/model-pipeline-handoff`
+- Overall state: `main` now contains the first complete model-side path on top of the Bowdoin preprocessing pipeline: aligned audio-motion sequence loading, a GRU motion-training baseline, checkpoint-driven motion prediction with reconstructed template outputs, and motion-bundle evaluation utilities; each code task was smoke-verified on Bowdoin scratch and merged through its own PR
 
 ## Completed
 
@@ -44,6 +44,13 @@ This is the current working-state tracker. Update it whenever repository state o
 - Implemented numeric motion feature extraction in `src/avagen/features/motion_features.py`.
 - Added `scripts/extract_motion_features.py` plus `configs/extract_motion_features.yaml` to flatten `motion_template.pkl` into `motion_features.npz`, emit `motion_summary.json`, and refresh the manifest with their paths.
 - Added `tests/test_motion_feature_extraction.py`.
+- Added an aligned sequence dataset layer in `src/avagen/data/dataset.py` plus `scripts/inspect_sequence_dataset.py`, so downstream code can interpolate audio features onto motion-frame timestamps and batch variable-length sequences.
+- Added `tests/test_aligned_sequence_dataset.py`.
+- Replaced the GRU training stubs with a first real baseline implementation in `src/avagen/models/motion_gru.py` and `src/avagen/training/train_motion.py`, including masked reconstruction and velocity losses, checkpoint save/load helpers, JSONL logging, `scripts/train_motion.py`, and a Bowdoin-safe `slurm/train_motion.sbatch`.
+- Added `tests/test_motion_training.py` and updated `configs/train_motion_gru.yaml` plus `pyproject.toml` for the optional training dependency path.
+- Added checkpoint-driven motion prediction utilities in `src/avagen/inference/generate_motion.py` plus `scripts/predict_motion.py`, and added motion-vector reconstruction helpers in `src/avagen/features/motion_features.py` so predicted motion can be saved as both `predicted_motion_features.npz` and `predicted_motion_template.pkl`.
+- Added `tests/test_motion_prediction.py`.
+- Implemented motion evaluation metrics in `src/avagen/evaluation/motion_metrics.py`, added `scripts/evaluate_motion.py`, `configs/evaluate_motion.yaml`, and a Bowdoin-safe `slurm/evaluate.sbatch`, and added `tests/test_motion_evaluation.py`.
 
 ## Current Reality
 
@@ -56,7 +63,10 @@ This is the current working-state tracker. Update it whenever repository state o
 - Dataset consumption is now no longer stubbed for the manifest layer: processed clip records can be loaded and filtered by split, and clip-level split assignments can be rewritten deterministically.
 - Audio features are now no longer stubbed for the processed-clip layer: each clip can produce framewise RMS, log-RMS, zero-crossing, peak-amplitude, and spectral-centroid features plus a summarized prosody JSON.
 - Motion features are now no longer stubbed for the processed-clip layer: each clip can flatten LivePortrait motion templates into a stable `motion_vector` plus component arrays for scale, rotation, expression, translation, keypoints, eye ratio, and lip ratio.
+- `main` now also contains an aligned `AudioMotionSequenceDataset`, a first GRU trainer with experiment outputs under `experiment_dir`, a motion-prediction path that reconstructs `predicted_motion_template.pkl` from checkpoint outputs, and a motion-evaluation path that scores predicted motion bundles against ground truth.
+- The new training and evaluation Slurm templates now write logs under `/mnt/hpc/tmp/%u/video-persona-gen/` instead of the quota-limited Bowdoin home workspace.
 - This shell currently does not have `ffmpeg`, `huggingface-cli`, `git-lfs`, or `pytest`, so full upstream LivePortrait validation and normal pytest execution were not completed here.
+- This shell also does not have `numpy`, `torch`, or `yaml`, so the new aligned-sequence, training, prediction, and evaluation paths were syntax-checked locally with `python3 -m compileall`, and their real runtime verification was performed on Bowdoin instead.
 - Bowdoin now has a confirmed durable layout for this project:
   - weights: `/mnt/hpc/tmp/kelsedfy/video-persona-gen/liveportrait_weights`
   - fetched inference runs: `/mnt/hpc/tmp/kelsedfy/video-persona-gen/liveportrait_runs/<jobid>/`
@@ -160,12 +170,19 @@ This is the current working-state tracker. Update it whenever repository state o
 
 ## Next Recommended Step
 
-- Run the first real third-party or self-recorded talking-head clip through `scripts/preprocess_dataset.py`, using `/mnt/hpc/tmp/kelsedfy/video-persona-gen/data/processed` as the default Bowdoin processed-data root.
-- Decide whether Bowdoin preprocessing should run directly in the existing repo env or in a dedicated preprocessing env separate from the LivePortrait env.
-- Keep `/mnt/hpc/tmp/<user>/video-persona-gen/liveportrait_weights` as the canonical Bowdoin weight cache and stop redownloading weights per run.
-- Decide whether to keep password-based automation or convert the verified workflow to SSH keys for a cleaner long-term setup.
-- Investigate the `onnxruntime-gpu` CUDA-provider mismatch (`libcublasLt.so.11` missing) so the ONNX subcomponents use GPU acceleration on Bowdoin instead of falling back noisily.
-- After one real clip preprocesses cleanly, implement the next actual model-input feature layer after audio features and motion features: landmarks/head pose, expression features, or the first real training loop.
+- Run the first real third-party or self-recorded talking-head mini-dataset through the full Bowdoin scratch pipeline:
+- `preprocess_dataset.py`
+- `extract_motion.py`
+- `create_splits.py`
+- `extract_audio_features.py`
+- `extract_motion_features.py`
+- `train_motion.py`
+- `predict_motion.py`
+- `evaluate_motion.py`
+- Decide whether the next highest-value task is:
+- integrating predicted motion templates back into a real LivePortrait render path
+- adding richer motion targets such as landmarks, head pose, or expression features
+- moving from smoke tests to the first nontrivial train/val experiment on a real mini-dataset
 
 ## Handoff Notes
 
@@ -197,4 +214,15 @@ This is the current working-state tracker. Update it whenever repository state o
 - The current remote recipe is: keep the existing Bowdoin env in home, stage the LivePortrait checkout copy under node-local `/tmp` for runtime, and persist reusable weights plus fetched artifacts under `/mnt/hpc/tmp/<user>/video-persona-gen`.
 - The current local data recipe is: `preprocess_dataset.py` -> `extract_motion.py` -> `create_splits.py` -> future audio/motion feature extraction and training loaders.
 - The current local data recipe is: `preprocess_dataset.py` -> `extract_motion.py` -> `create_splits.py` -> `extract_audio_features.py` -> `extract_motion_features.py` -> future landmark/expression features and training loaders.
+- The four merged model-side PRs from this session were:
+- `#11` aligned audio-motion sequence dataset
+- `#12` GRU motion training baseline
+- `#13` motion prediction pipeline
+- `#14` motion evaluation pipeline
+- Verified Bowdoin scratch outputs from those PRs now include:
+- sequence inspection against `/mnt/hpc/tmp/kelsedfy/video-persona-gen/data/processed/smoke_preprocess/manifest.jsonl`
+- GRU smoke checkpoints under `/mnt/hpc/tmp/kelsedfy/video-persona-gen/verifications/gru-motion-training.eXMSL3/checkpoints/`
+- predicted motion artifacts under `/mnt/hpc/tmp/kelsedfy/video-persona-gen/predicted_motion/prediction-smoke.WCxJtx/`
+- evaluation metrics from job `63777` against that predicted-motion root
+- The Bowdoin home-repo checkout at `/home/kelsedfy/video-persona-gen` is currently dirty from earlier work, so future remote verification should keep using fresh scratch clones under `/mnt/hpc/tmp/kelsedfy/video-persona-gen/verifications/` unless that home checkout is intentionally cleaned up.
 - Future sessions should play a local completion sound when a task is finished.
