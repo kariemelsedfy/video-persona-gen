@@ -5,9 +5,9 @@ This is the current working-state tracker. Update it whenever repository state o
 ## Status
 
 - Date: July 5, 2026
-- Phase: first model baseline merged, Bowdoin manifest-preparation job Bowdoin-verified; first real (non-smoke) identity now preprocessed locally and Bowdoin raw-preprocess round-trip is in progress
+- Phase: first model baseline merged, Bowdoin manifest-preparation job Bowdoin-verified; first real (non-smoke) identity now preprocessed both locally and on Bowdoin
 - Branch: `feat/bowdoin-preprocess-roundtrip`
-- Overall state: `main` now contains the first complete model-side path on top of the Bowdoin preprocessing pipeline, including the predicted-render round-trip workflow, and the manifest-preparation Slurm job. The current branch adds the missing local-to-Bowdoin raw preprocessing bridge: `scripts/upload_to_bowdoin.sh`, `scripts/run_bowdoin_preprocess_roundtrip.sh`, and `scripts/fetch_bowdoin_preprocess_output.sh`, plus a Bowdoin-safe CPU `slurm/preprocess.sbatch`. A real Bowdoin run against `data/raw/hdtf_cmr/` is currently in progress from this branch: the raw upload finished successfully, Bowdoin job `63795` was submitted, and the latest direct remote check showed `63795` still `RUNNING` on `moose12` at about `11:25` elapsed. Local exec session `10600` is still the wrapper poll/fetch process, but if this machine shuts down before completion, only the local fetch will be interrupted; the remote Slurm job will keep running on Bowdoin. Motion extraction and everything downstream of preprocessing still needs Bowdoin and remains the next stage after this wrapper is verified.
+- Overall state: `main` now contains the first complete model-side path on top of the Bowdoin preprocessing pipeline, including the predicted-render round-trip workflow, and the manifest-preparation Slurm job. The current branch adds the missing local-to-Bowdoin raw preprocessing bridge: `scripts/upload_to_bowdoin.sh`, `scripts/run_bowdoin_preprocess_roundtrip.sh`, and `scripts/fetch_bowdoin_preprocess_output.sh`, plus a Bowdoin-safe CPU `slurm/preprocess.sbatch`. The first real remote run against `data/raw/hdtf_cmr/` is now verified end to end: upload completed, Bowdoin job `63795` finished successfully, the processed identity lives at `/mnt/hpc/tmp/kelsedfy/video-persona-gen/data/processed/hdtf_cmr`, and the fetched local inspection bundle lives at `outputs/bowdoin_preprocess/job-63795/`. Motion extraction and everything downstream of preprocessing still needs Bowdoin and remains the next stage after this wrapper lands on `main`.
 
 ## Completed
 
@@ -54,6 +54,8 @@ This is the current working-state tracker. Update it whenever repository state o
 - Implemented a predicted-template render bridge on the current branch through `src/avagen/renderers/video_renderer.py`, `scripts/render_predicted_motion.py`, `configs/render_predicted_motion.yaml`, and `slurm/render_predicted_motion.sbatch`, plus `tests/test_predicted_motion_rendering.py`.
 - Added Bowdoin predicted-render round-trip wrappers at `scripts/run_bowdoin_predicted_render_roundtrip.sh` and `scripts/fetch_bowdoin_predicted_render_output.sh` so persisted render outputs can be fetched into the local repo after Slurm completion.
 - Added `slurm/prepare_dataset_manifest.sbatch` so Bowdoin can prepare one processed identity manifest for training in a single tracked job.
+- Added `scripts/upload_to_bowdoin.sh`, `scripts/run_bowdoin_preprocess_roundtrip.sh`, and `scripts/fetch_bowdoin_preprocess_output.sh` so a local raw identity directory can be uploaded to Bowdoin scratch, preprocessed under Slurm from a fresh scratch clone, and fetched back as a small local inspection bundle.
+- Updated `slurm/preprocess.sbatch` to use the CPU `main` partition by default and run the tracked Bowdoin env explicitly through `PYTHON_BIN` instead of an implicit `python`.
 - Selected the first real (non-self-recorded) identity for pipeline validation: `hdtf_cmr` (Cathy McMorris Rodgers, from the HDTF "WRA" subset). Selection was data-driven, not a guess: pulled `WRA_annotion_time.txt`/`WRA_resolution.txt`/`WRA_video_url.txt` directly from `github.com/MRzzm/HDTF` (this repo had no HDTF metadata cached anywhere) and computed per-identity total annotated duration and session count. She has the most total speaking time among multi-session HDTF identities (1248.04s / 20.8 min across 3 distinct sessions), all three videos are from her own official congressional channel (checked via YouTube oEmbed titles/channel names, not just filenames). The runner-up by raw numbers, Roger Wicker (14.3 min, uniform 720p metadata), was rejected after the same oEmbed check showed his 3 clips come from three unrelated production contexts (a symposium, a memorial service, a third-party outlet), so the resolution match was coincidental, not a real consistent-setup signal.
 - Downloaded and trimmed the 3 source videos with `yt-dlp` + `ffmpeg` (both installed locally via Homebrew) directly to the HDTF annotation windows, keeping session1's three contiguous HDTF sub-intervals merged into one continuous clip (00:05-15:00) instead of 3 separate files, so each output clip maps 1:1 to one distinct recording session (matters for `create_splits.py`, which splits by `clip_id` with no session-grouping awareness). Raw output: `data/raw/hdtf_cmr/hdtf_cmr_session{0,1,2}.mp4` (243.02s, 895.0s, 110.03s — gitignored, not committed).
 - Updated `configs/preprocess_hdtf.yaml` with `identity_id: hdtf_cmr`, the 3 input paths, and a comment block recording the source YouTube URLs/trim windows for provenance (this file is documentation only — no script currently reads it; `scripts/preprocess_dataset.py` was invoked directly with matching flags).
@@ -178,14 +180,23 @@ This is the current working-state tracker. Update it whenever repository state o
   - generated `/mnt/hpc/tmp/kelsedfy/video-persona-gen/data/processed/smoke_preprocess/d0_tone/motion_summary.json` at `228` bytes
   - flattened the sample clip into a motion feature vector dimension of `205`
   - refreshed both `metadata.json` and `manifest.jsonl` with `motion_features_path` and `motion_summary_path`
+- Ran `bash scripts/run_bowdoin_preprocess_roundtrip.sh --identity-id hdtf_cmr --local-raw-dir data/raw/hdtf_cmr --overwrite`, which:
+  - uploaded the 3 local raw clips to `/mnt/hpc/tmp/kelsedfy/video-persona-gen/data/raw/hdtf_cmr`
+  - cloned the branch into `/mnt/hpc/tmp/kelsedfy/video-persona-gen/verifications/preprocess-20260705-143727-10839/repo`
+  - submitted Bowdoin job `63795`
+  - completed successfully and left the processed identity at `/mnt/hpc/tmp/kelsedfy/video-persona-gen/data/processed/hdtf_cmr`
+  - fetched a local inspection bundle into `outputs/bowdoin_preprocess/job-63795/`
+- Verified from the fetched Bowdoin inspection bundle for job `63795` that:
+  - `dataset_report.json` reports `identity_id: hdtf_cmr`, `num_clips: 3`, `total_duration_sec: 1248.04265`, `total_frames: 30193`, and `splits: {train: 3}`
+  - `manifest.jsonl` contains the expected clip ids `hdtf_cmr_session0_000`, `hdtf_cmr_session1_001`, and `hdtf_cmr_session2_002`
+  - the Bowdoin face-detection rates match the local preprocess run at about `99.74%`, `99.96%`, and `99.96%`
+  - local inspection PNGs plus `metadata.json` for all 3 clips were downloaded under `outputs/bowdoin_preprocess/job-63795/clip_summaries/`
 
 ## Next Recommended Step
 
-- `data/processed/hdtf_cmr/` (3 clips, real HDTF footage, manifest + report already generated) is sitting locally on the Mac, ready to be synced to Bowdoin. It was intentionally preprocessed locally and NOT pushed through any Bowdoin step this session — that hand-off is for the next agent (Codex) to do.
+- `data/raw/hdtf_cmr/` has now been synced and preprocessed successfully on Bowdoin scratch, so the local-to-remote bridge is no longer the blocker.
 - Recommended next actions on Bowdoin, in order:
-- sync `data/raw/hdtf_cmr/` or `data/processed/hdtf_cmr/` to the durable scratch root (`/mnt/hpc/tmp/kelsedfy/video-persona-gen/data/processed/hdtf_cmr/`)
-- confirm the remote env's `opencv-python` is pinned `<5` per the `requirements.txt` fix above before re-running any face-crop step there
-- run `slurm/prepare_dataset_manifest.sbatch` against `.../data/processed/hdtf_cmr/manifest.jsonl` (runs `extract_motion.py` -> `create_splits.py` -> `extract_audio_features.py` -> `extract_motion_features.py`) — this is the first time that job will run against real (non-synthetic) multi-minute footage rather than the `smoke_preprocess` sample, so treat timing/memory as unverified at this scale
+- run `slurm/prepare_dataset_manifest.sbatch` against `/mnt/hpc/tmp/kelsedfy/video-persona-gen/data/processed/hdtf_cmr/manifest.jsonl` (runs `extract_motion.py` -> `create_splits.py` -> `extract_audio_features.py` -> `extract_motion_features.py`) — this is the first time that job will run against real (non-synthetic) multi-minute footage rather than the `smoke_preprocess` sample, so treat timing/memory as unverified at this scale
 - proceed to `train_motion.py` -> `predict_motion.py` -> `evaluate_motion.py` -> `run_bowdoin_predicted_render_roundtrip.sh` per the existing recipe
 - Separately, decide whether the next highest-value task is:
 - adding a single-command Bowdoin orchestration wrapper for the full preprocess-to-render pipeline
@@ -256,4 +267,9 @@ This is the current working-state tracker. Update it whenever repository state o
 - verified Bowdoin job `63792` ran `slurm/prepare_dataset_manifest.sbatch` against `/mnt/hpc/tmp/kelsedfy/video-persona-gen/data/processed/smoke_preprocess/manifest.jsonl`
 - verified stage order: `extract_motion.py` -> `create_splits.py` -> `extract_audio_features.py` -> `extract_motion_features.py`
 - verified refreshed artifacts stayed in place under `/mnt/hpc/tmp/kelsedfy/video-persona-gen/data/processed/smoke_preprocess/d0_tone/`
+- Current raw-preprocess round-trip notes:
+- current branch: `feat/bowdoin-preprocess-roundtrip`
+- verified Bowdoin job `63795` ran `slurm/preprocess.sbatch` against the uploaded raw identity dir `/mnt/hpc/tmp/kelsedfy/video-persona-gen/data/raw/hdtf_cmr`
+- verified remote processed identity root: `/mnt/hpc/tmp/kelsedfy/video-persona-gen/data/processed/hdtf_cmr`
+- verified local inspection bundle root: `outputs/bowdoin_preprocess/job-63795/`
 - Future sessions should play a local completion sound when a task is finished.
