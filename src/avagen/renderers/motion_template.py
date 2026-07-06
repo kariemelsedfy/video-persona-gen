@@ -164,6 +164,7 @@ def _extract_single_motion_template(
         raise ValueError(f"Unsupported driving_source: {config.driving_source}")
     output_dir = ensure_dir(work_dir / "output")
     template_target = clip_dir / "motion_template.pkl"
+    generated_template = staged_driving.with_suffix(".pkl")
 
     if template_target.exists():
         if not config.overwrite:
@@ -178,6 +179,8 @@ def _extract_single_motion_template(
                 "status": "skipped_existing",
             }
         template_target.unlink()
+    if generated_template.exists() or generated_template.is_symlink():
+        generated_template.unlink()
 
     run_result = runner(
         LivePortraitRunConfig(
@@ -200,7 +203,6 @@ def _extract_single_motion_template(
             "command": run_result.command,
         }
 
-    generated_template = staged_driving.with_suffix(".pkl")
     if not generated_template.exists():
         raise FileNotFoundError(f"Expected LivePortrait motion template not found: {generated_template}")
 

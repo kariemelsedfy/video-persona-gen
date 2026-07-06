@@ -6,8 +6,8 @@ This is the current working-state tracker. Update it whenever repository state o
 
 - Date: July 5, 2026
 - Phase: first model baseline merged, Bowdoin manifest-preparation job Bowdoin-verified; first real (non-smoke) identity now preprocessed both locally and on Bowdoin
-- Branch: `feat/bowdoin-preprocess-roundtrip`
-- Overall state: `main` now contains the first complete model-side path on top of the Bowdoin preprocessing pipeline, including the predicted-render round-trip workflow, and the manifest-preparation Slurm job. The current branch adds the missing local-to-Bowdoin raw preprocessing bridge: `scripts/upload_to_bowdoin.sh`, `scripts/run_bowdoin_preprocess_roundtrip.sh`, and `scripts/fetch_bowdoin_preprocess_output.sh`, plus a Bowdoin-safe CPU `slurm/preprocess.sbatch`. The first real remote run against `data/raw/hdtf_cmr/` is now verified end to end: upload completed, Bowdoin job `63795` finished successfully, the processed identity lives at `/mnt/hpc/tmp/kelsedfy/video-persona-gen/data/processed/hdtf_cmr`, and the fetched local inspection bundle lives at `outputs/bowdoin_preprocess/job-63795/`. Motion extraction and everything downstream of preprocessing still needs Bowdoin and remains the next stage after this wrapper lands on `main`.
+- Branch: `feat/hdtf-manifest-prep-run`
+- Overall state: `main` already contains the verified Bowdoin raw-preprocess round-trip workflow from PR `#20`. The current branch is focused on the first real Bowdoin manifest-preparation run for `hdtf_cmr`. The first fresh-clone retry path is now corrected, memory has been raised, and the extractor can now drive LivePortrait from synthesized face-crop videos instead of the full raw source clips. Bowdoin job `63805` is currently running from this branch’s pushed code on `moose68`, using the face-crop driving path plus a `96G` memory request. As of the latest check it was still in `extract_motion` on clip `1/3`, but with stable low memory usage around `10 GB`, which is a major improvement over the earlier raw-video attempt.
 
 ## Completed
 
@@ -58,6 +58,10 @@ This is the current working-state tracker. Update it whenever repository state o
 - Updated `slurm/preprocess.sbatch` to use the CPU `main` partition by default and run the tracked Bowdoin env explicitly through `PYTHON_BIN` instead of an implicit `python`.
 - Added `scripts/run_bowdoin_prepare_manifest_roundtrip.sh` so a processed identity manifest can be prepared from a fresh Bowdoin scratch clone while explicitly pointing at the remote upstream LivePortrait checkout that is not present in ignored `external/` paths.
 - Increased the default memory request for `slurm/prepare_dataset_manifest.sbatch` and its round-trip wrapper to `64G` after the first real `hdtf_cmr` manifest-preparation attempt hit Slurm `OUT_OF_MEMORY` at `32G`.
+- Added per-clip progress logging to `src/avagen/renderers/motion_template.py` so long LivePortrait extraction jobs emit `starting`, `completed`, and `skipped_existing` markers into the Slurm log instead of looking silent for hours.
+- Added a new `driving_source` option to motion-template extraction, updated `scripts/extract_motion.py` to accept it, set `configs/extract_motion.yaml` to use `face_crop_video`, and added `tests/test_motion_template_face_crop_video.py`.
+- Updated motion-template extraction to synthesize a driving MP4 from preprocessed `face_crops/*.png` via `ffmpeg`, so LivePortrait can operate on cropped low-resolution face videos instead of the larger raw source clips.
+- Updated motion-template extraction to delete stale staged `.pkl` files in the work directory before reruns, so an old intermediate template cannot be mistaken for a newly generated one.
 - Selected the first real (non-self-recorded) identity for pipeline validation: `hdtf_cmr` (Cathy McMorris Rodgers, from the HDTF "WRA" subset). Selection was data-driven, not a guess: pulled `WRA_annotion_time.txt`/`WRA_resolution.txt`/`WRA_video_url.txt` directly from `github.com/MRzzm/HDTF` (this repo had no HDTF metadata cached anywhere) and computed per-identity total annotated duration and session count. She has the most total speaking time among multi-session HDTF identities (1248.04s / 20.8 min across 3 distinct sessions), all three videos are from her own official congressional channel (checked via YouTube oEmbed titles/channel names, not just filenames). The runner-up by raw numbers, Roger Wicker (14.3 min, uniform 720p metadata), was rejected after the same oEmbed check showed his 3 clips come from three unrelated production contexts (a symposium, a memorial service, a third-party outlet), so the resolution match was coincidental, not a real consistent-setup signal.
 - Downloaded and trimmed the 3 source videos with `yt-dlp` + `ffmpeg` (both installed locally via Homebrew) directly to the HDTF annotation windows, keeping session1's three contiguous HDTF sub-intervals merged into one continuous clip (00:05-15:00) instead of 3 separate files, so each output clip maps 1:1 to one distinct recording session (matters for `create_splits.py`, which splits by `clip_id` with no session-grouping awareness). Raw output: `data/raw/hdtf_cmr/hdtf_cmr_session{0,1,2}.mp4` (243.02s, 895.0s, 110.03s — gitignored, not committed).
 - Updated `configs/preprocess_hdtf.yaml` with `identity_id: hdtf_cmr`, the 3 input paths, and a comment block recording the source YouTube URLs/trim windows for provenance (this file is documentation only — no script currently reads it; `scripts/preprocess_dataset.py` was invoked directly with matching flags).
@@ -196,12 +200,23 @@ This is the current working-state tracker. Update it whenever repository state o
 - Ran a first fresh-clone submission for `slurm/prepare_dataset_manifest.sbatch` against `/mnt/hpc/tmp/kelsedfy/video-persona-gen/data/processed/hdtf_cmr/manifest.jsonl` as Bowdoin job `63799`; it failed immediately because the fresh scratch clone did not contain the ignored `external/LivePortrait` checkout, which the job script defaults to under `$REPO_ROOT/external/LivePortrait`.
 - Added `scripts/run_bowdoin_prepare_manifest_roundtrip.sh` and ran it against the same real manifest with overwrite flags, which submitted Bowdoin job `63800` and fixed the missing-`LIVEPORTRAIT_ROOT` problem by explicitly passing `/home/kelsedfy/video-persona-gen/external/LivePortrait`.
 - Verified from the fetched local inspection bundle for job `63800` that the corrected round-trip fetched successfully into `outputs/bowdoin_prepare_manifest/job-63800/`, but the Bowdoin job state was `OUT_OF_MEMORY` before any metadata or manifest fields changed. The fetched bundle still showed all `motion_template_path`, `audio_features_path`, `prosody_summary_path`, `motion_features_path`, and `motion_summary_path` fields as `null`, which means the failure happened before the first artifact writeback completed. The next retry should use the raised `64G` default or higher.
+- Submitted Bowdoin job `63801` through the first high-memory retry path (`96G`) while still driving LivePortrait from raw source videos. That run proved the memory fix: it stayed healthy around `47 GB` RSS and eventually produced a copied-back `motion_template.pkl` for `hdtf_cmr_session0_000`, but it was still too slow to be the preferred path for real multi-minute footage.
+- Canceled Bowdoin job `63801` after confirming the raw-video path was operational but throughput-limited, then pushed the face-crop driving change to this branch and relaunched the real retry as Bowdoin job `63805`.
+- Verified early runtime behavior for Bowdoin job `63805`:
+  - Slurm log now shows `[extract_motion] clip_id=... status=starting index=1/3`
+  - memory dropped from about `47 GB` on the raw-video run to about `10 GB` RSS on the face-crop run
+  - the job stayed in `RUNNING` state on `moose68` through at least `33:40` elapsed, still working on `hdtf_cmr_session0_000`
 
 ## Next Recommended Step
 
 - `data/raw/hdtf_cmr/` has now been synced and preprocessed successfully on Bowdoin scratch, so the local-to-remote bridge is no longer the blocker.
 - Recommended next actions on Bowdoin, in order:
-- rerun `bash scripts/run_bowdoin_prepare_manifest_roundtrip.sh --manifest-path /mnt/hpc/tmp/kelsedfy/video-persona-gen/data/processed/hdtf_cmr/manifest.jsonl --mem 64G --overwrite-motion-templates --overwrite-audio-features --overwrite-motion-features` — the wrapper is now the safer entrypoint because it passes the remote LivePortrait checkout explicitly and the `32G` default was too small for the first real `hdtf_cmr` attempt
+- keep monitoring Bowdoin job `63805`, which is the current best real retry path:
+- `bash scripts/run_bowdoin_prepare_manifest_roundtrip.sh --git-ref feat/hdtf-manifest-prep-run --manifest-path /mnt/hpc/tmp/kelsedfy/video-persona-gen/data/processed/hdtf_cmr/manifest.jsonl --mem 96G --overwrite-motion-templates --overwrite-audio-features --overwrite-motion-features`
+- once `63805` completes, inspect `outputs/bowdoin_prepare_manifest/job-63805/` for:
+- `motion_template_path` on all 3 clips
+- non-null `audio_features_path`, `prosody_summary_path`, `motion_features_path`, and `motion_summary_path`
+- real split assignment from `create_splits.py`
 - proceed to `train_motion.py` -> `predict_motion.py` -> `evaluate_motion.py` -> `run_bowdoin_predicted_render_roundtrip.sh` per the existing recipe
 - Separately, decide whether the next highest-value task is:
 - adding a single-command Bowdoin orchestration wrapper for the full preprocess-to-render pipeline
@@ -282,4 +297,6 @@ This is the current working-state tracker. Update it whenever repository state o
 - Bowdoin job `63799` failed immediately from a fresh scratch clone because `LIVEPORTRAIT_ROOT` defaulted to `$REPO_ROOT/external/LivePortrait`, which is absent in a normal clone
 - Bowdoin job `63800` reran through `scripts/run_bowdoin_prepare_manifest_roundtrip.sh`, fixed the missing-LivePortrait path issue, and fetched a local inspection bundle into `outputs/bowdoin_prepare_manifest/job-63800/`
 - `63800` still ended in Slurm state `OUT_OF_MEMORY` at the old `32G` default before writing any motion/audio artifacts back into the manifest
+- Bowdoin job `63801` proved the higher-memory raw-video path works functionally but is too slow for interactive iteration; it was canceled after clip `hdtf_cmr_session0_000` completed so the branch could switch to the more efficient face-crop driving mode
+- Bowdoin job `63805` is the active retry from this branch’s pushed code, using face-crop driving videos and `96G` memory; latest observed state was `RUNNING` on `moose68` at about `33:40` elapsed with stable RSS around `10 GB`
 - Future sessions should play a local completion sound when a task is finished.
