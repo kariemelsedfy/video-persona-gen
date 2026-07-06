@@ -30,6 +30,7 @@ class MotionTemplateExtractionConfig:
     work_root: Path | None = None
     output_field: str = "motion_template_path"
     driving_source: str = "source_video"
+    skip_render: bool = True
     extra_args: Sequence[str] = field(default_factory=tuple)
     clip_ids: tuple[str, ...] = ()
     overwrite: bool = False
@@ -191,6 +192,7 @@ def _extract_single_motion_template(
             inference_script=config.inference_script,
             python_executable=config.python_executable,
             extra_args=config.extra_args,
+            stop_when_file=generated_template if config.skip_render else None,
         ),
         dry_run=dry_run,
     )

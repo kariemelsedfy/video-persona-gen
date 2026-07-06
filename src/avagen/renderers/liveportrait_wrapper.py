@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import subprocess
 import sys
+import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Sequence
@@ -23,6 +24,12 @@ class LivePortraitRunConfig:
     driving_flag: str = "-d"
     output_flag: str = "-o"
     extra_args: Sequence[str] = field(default_factory=tuple)
+    # When set, terminate LivePortrait as soon as this file (its driving motion
+    # template) is fully written, skipping the memory-heavy rendering loop that
+    # follows. Used for motion-template extraction, where the render is discarded.
+    stop_when_file: Path | None = None
+    stop_poll_interval: float = 2.0
+    stop_stable_checks: int = 2
 
 
 @dataclass
@@ -107,6 +114,9 @@ def run_liveportrait_inference(
     if dry_run:
         return result
 
+    if config.stop_when_file is not None:
+        return _run_until_file_ready(config, command, liveportrait_root, result)
+
     completed = subprocess.run(
         command,
         cwd=str(liveportrait_root),
@@ -125,4 +135,59 @@ def run_liveportrait_inference(
             f"LivePortrait inference failed with exit code {completed.returncode}: {stderr_text}"
         )
 
+    return result
+
+
+def _run_until_file_ready(
+    config: LivePortraitRunConfig,
+    command: list[str],
+    liveportrait_root: Path,
+    result: LivePortraitRunResult,
+) -> LivePortraitRunResult:
+    """Run LivePortrait but stop as soon as its driving template is written.
+
+    stdout/stderr are inherited (not piped) so the child never blocks on a full
+    pipe buffer during the long make-motion-template loop.
+    """
+    target = config.stop_when_file.resolve()
+    # Start clean so a stale template is not mistaken for a fresh one.
+    if target.exists():
+        target.unlink()
+
+    process = subprocess.Popen(command, cwd=str(liveportrait_root))
+    last_size = -1
+    stable = 0
+    try:
+        while True:
+            exited = process.poll()
+            if target.exists():
+                size = target.stat().st_size
+                if size > 0 and size == last_size:
+                    stable += 1
+                    if stable >= config.stop_stable_checks:
+                        break  # template fully written; skip the render
+                else:
+                    stable = 0
+                last_size = size
+            if exited is not None:
+                # Process ended on its own before we stopped it.
+                if target.exists() and target.stat().st_size > 0:
+                    break
+                result.returncode = exited
+                result.status = "failed"
+                raise RuntimeError(
+                    f"LivePortrait exited with code {exited} before writing template {target}."
+                )
+            time.sleep(config.stop_poll_interval)
+    finally:
+        if process.poll() is None:
+            process.terminate()
+            try:
+                process.wait(timeout=15)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait()
+
+    result.returncode = 0
+    result.status = "completed"
     return result

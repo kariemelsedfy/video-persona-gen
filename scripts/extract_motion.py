@@ -35,6 +35,13 @@ def parse_args() -> argparse.Namespace:
         choices=["source_video", "face_crop_video"],
         help="Which clip representation to feed into LivePortrait.",
     )
+    parser.add_argument(
+        "--skip-render",
+        dest="skip_render",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Stop LivePortrait once the motion template is written, skipping the discarded render (default: on).",
+    )
     parser.add_argument("--clip-id", action="append", default=[], help="Restrict extraction to one or more clip IDs.")
     parser.add_argument("--extra-arg", action="append", default=[], help="Additional argument to forward.")
     parser.add_argument("--overwrite", action="store_true", help="Overwrite existing motion templates.")
@@ -70,6 +77,7 @@ def main() -> int:
     work_root = Path(work_root_value) if work_root_value else None
     output_field = str(_get_value(args, config_data, "output_field", "motion_template_path"))
     driving_source = str(_get_value(args, config_data, "driving_source", "source_video"))
+    skip_render = bool(_get_value(args, config_data, "skip_render", True))
     clip_ids = tuple(args.clip_id or config_data.get("clip_ids", []) or [])
     extra_args = tuple(args.extra_arg or config_data.get("extra_args", []) or [])
 
@@ -82,6 +90,7 @@ def main() -> int:
             work_root=work_root.resolve() if work_root else None,
             output_field=output_field,
             driving_source=driving_source,
+            skip_render=skip_render,
             extra_args=extra_args,
             clip_ids=clip_ids,
             overwrite=args.overwrite,
