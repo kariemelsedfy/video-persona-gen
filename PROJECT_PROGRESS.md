@@ -7,7 +7,7 @@ This is the current working-state tracker. Update it whenever repository state o
 - Date: July 5, 2026
 - Phase: first model baseline merged, Bowdoin manifest-preparation job Bowdoin-verified; first real (non-smoke) identity now preprocessed both locally and on Bowdoin
 - Branch: `feat/hdtf-manifest-prep-run`
-- Overall state: `main` already contains the verified Bowdoin raw-preprocess round-trip workflow from PR `#20`. The current branch is focused on the first real Bowdoin manifest-preparation run for `hdtf_cmr`. The first fresh-clone retry path is now corrected, memory has been raised, and the extractor can now drive LivePortrait from synthesized face-crop videos instead of the full raw source clips. Bowdoin job `63805` is currently running from this branch’s pushed code on `moose68`, using the face-crop driving path plus a `96G` memory request. As of the latest check it was still in `extract_motion` on clip `1/3`, but with stable low memory usage around `10 GB`, which is a major improvement over the earlier raw-video attempt.
+- Overall state: `main` already contains the verified Bowdoin raw-preprocess round-trip workflow from PR `#20`. The current branch is focused on the first real Bowdoin manifest-preparation run for `hdtf_cmr`. The first fresh-clone retry path is now corrected, memory has been raised, and the extractor can now drive LivePortrait from synthesized face-crop videos instead of the full raw source clips. Bowdoin job `63805` is currently still running from this branch’s pushed code on `moose68`, using the face-crop driving path plus a `96G` memory request. As of the latest check it had reached `1:14:45` elapsed, completed `hdtf_cmr_session0_000`, started `hdtf_cmr_session1_001`, written the first real `motion_template.pkl` back into the processed identity, and hit about `41 GB` max RSS so far.
 
 ## Completed
 
@@ -202,10 +202,14 @@ This is the current working-state tracker. Update it whenever repository state o
 - Verified from the fetched local inspection bundle for job `63800` that the corrected round-trip fetched successfully into `outputs/bowdoin_prepare_manifest/job-63800/`, but the Bowdoin job state was `OUT_OF_MEMORY` before any metadata or manifest fields changed. The fetched bundle still showed all `motion_template_path`, `audio_features_path`, `prosody_summary_path`, `motion_features_path`, and `motion_summary_path` fields as `null`, which means the failure happened before the first artifact writeback completed. The next retry should use the raised `64G` default or higher.
 - Submitted Bowdoin job `63801` through the first high-memory retry path (`96G`) while still driving LivePortrait from raw source videos. That run proved the memory fix: it stayed healthy around `47 GB` RSS and eventually produced a copied-back `motion_template.pkl` for `hdtf_cmr_session0_000`, but it was still too slow to be the preferred path for real multi-minute footage.
 - Canceled Bowdoin job `63801` after confirming the raw-video path was operational but throughput-limited, then pushed the face-crop driving change to this branch and relaunched the real retry as Bowdoin job `63805`.
-- Verified early runtime behavior for Bowdoin job `63805`:
-  - Slurm log now shows `[extract_motion] clip_id=... status=starting index=1/3`
-  - memory dropped from about `47 GB` on the raw-video run to about `10 GB` RSS on the face-crop run
-  - the job stayed in `RUNNING` state on `moose68` through at least `33:40` elapsed, still working on `hdtf_cmr_session0_000`
+- Rechecked Bowdoin job `63805` during the long face-crop retry:
+  - `squeue` still reports `RUNNING` on `moose68` at `1:14:45` elapsed
+  - `sstat -j 63805.batch` reported `MaxRSS=41011660K` and `MaxVMSize=40882064K`
+  - `/mnt/hpc/tmp/kelsedfy/video-persona-gen/data/processed/hdtf_cmr/slurm-63805.out` now shows:
+  - `[extract_motion] clip_id=hdtf_cmr_session0_000 status=completed template_path=/mnt/hpc/tmp/kelsedfy/video-persona-gen/data/processed/hdtf_cmr/hdtf_cmr_session0_000/motion_template.pkl`
+  - `[extract_motion] clip_id=hdtf_cmr_session1_001 status=starting index=2/3`
+  - `find` on the processed identity currently shows one completed template on disk:
+  - `/mnt/hpc/tmp/kelsedfy/video-persona-gen/data/processed/hdtf_cmr/hdtf_cmr_session0_000/motion_template.pkl`
 
 ## Next Recommended Step
 
@@ -217,6 +221,8 @@ This is the current working-state tracker. Update it whenever repository state o
 - `motion_template_path` on all 3 clips
 - non-null `audio_features_path`, `prosody_summary_path`, `motion_features_path`, and `motion_summary_path`
 - real split assignment from `create_splits.py`
+- if the local wrapper session is gone before it fetches automatically, manually fetch the inspection bundle with:
+- `bash scripts/fetch_bowdoin_preprocess_output.sh --job-id 63805 --remote-identity-dir /mnt/hpc/tmp/kelsedfy/video-persona-gen/data/processed/hdtf_cmr --local-dir outputs/bowdoin_prepare_manifest/job-63805`
 - proceed to `train_motion.py` -> `predict_motion.py` -> `evaluate_motion.py` -> `run_bowdoin_predicted_render_roundtrip.sh` per the existing recipe
 - Separately, decide whether the next highest-value task is:
 - adding a single-command Bowdoin orchestration wrapper for the full preprocess-to-render pipeline
