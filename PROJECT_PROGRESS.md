@@ -5,9 +5,17 @@ This is the current working-state tracker. Update it whenever repository state o
 ## Status
 
 - Date: July 6, 2026
-- Phase: first real (non-smoke) `hdtf_cmr` manifest is fully prepared and training-ready on Bowdoin; ready to move to the first real training run
-- Branch: `feat/hdtf-manifest-prep-run` (manifest/face-crop work verified and ready to merge)
-- Overall state: `main` already contains the verified Bowdoin raw-preprocess round-trip workflow from PR `#20`. The current branch drove the first real Bowdoin manifest-preparation run for `hdtf_cmr` to completion. Job `63805` (face-crop driving, `96G`) hit `OUT_OF_MEMORY` after `4:39:20` at `~96 GB` MaxRSS — root cause is LivePortrait's post-template video-rendering loop (which this pipeline discards) accumulating all output frames in RAM, scaling with clip length, so `session1_001` (~21k frames) OOM'd during rendering after its template was already dumped. `session1`'s complete `21480`-frame template was salvaged from the work dir (no re-extraction), then finish job `63816` extracted only `session2` (0 & 1 `skipped_existing`) and ran splits + audio + motion features to completion. The manifest now has all 5 artifact fields populated on all 3 clips with real splits (`train`/`test`/`val`). Follow-up: a skip-render fix (stop LivePortrait after the `.pkl` dump) is planned as a separate PR so long clips no longer OOM.
+- Phase: first real (non-smoke) `hdtf_cmr` manifest merged (PR #21); first real training run done and iterated into a forward-facing, visibly-talking avatar (PR #22, open)
+- Branches: `feat/hdtf-manifest-prep-run` (merged, PR #21); `feat/windowed-temporal-split` (open, PR #22 — windowing + normalization + mel + skip-render + auto-mux)
+- Best demo: `outputs/bowdoin_predicted_render/job-63931/renders/hdtf_cmr/hdtf_cmr_session2_002/session2_MEL_predicted_with_audio.mp4` and `comparison_gt_vs_baseline_vs_mel.png`
+- Overall state: `main` contains the merged Bowdoin manifest workflow. The manifest run (PR #21): job `63805` OOM'd during LivePortrait's discarded render loop on the long clip; `session1`'s template (written before the render) was salvaged; finish job `63816` completed the manifest. Then PR #22 built the model-quality arc:
+  - Windowed within-clip temporal split (all clips → ~482 train windows, real batching). First windowed train `63914`.
+  - Diagnosed a frozen/sideways-grinning render: unnormalized MSE collapses small motion dims (lip/eye var-ratio ~0.09/0.07); predicted rotations invalid (det ~1.03).
+  - Fixes: motion-target normalization (`dataset.normalize_motion`), SVD rotation orthonormalization, velocity weight 0.1→0.5 (retrain `63924`) — pose fixed but lips still frozen (5 loudness scalars lack phonetic content).
+  - Log-mel spectrogram audio features + mel config (retrain `63929`): lip var-ratio 0.09→0.20, expression 0.55→0.65, render `63931` forward-facing and talking.
+  - Auto-mux driving audio into renders (+ fps fix); skip-render during motion extraction (Popen + stop-on-template) so long clips no longer OOM.
+  - Running: `63932` bidirectional-mel experiment (offline avatar can use future audio context).
+  - Remaining ceiling: mouth ~20% of real amplitude; eyes/blinks flat (not audio-predictable). Next lever: pretrained audio encoder (wav2vec2/HuBERT).
 
 ## Completed
 
