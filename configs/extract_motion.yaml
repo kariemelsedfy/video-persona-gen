@@ -4,4 +4,5 @@ liveportrait_root: external/LivePortrait
 python_executable: python
 work_root: outputs/motion_template_work
 output_field: motion_template_path
+driving_source: face_crop_video
 extra_args: []

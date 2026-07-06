@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import shutil
+import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Sequence
@@ -28,6 +29,7 @@ class MotionTemplateExtractionConfig:
     inference_script: Path | None = None
     work_root: Path | None = None
     output_field: str = "motion_template_path"
+    driving_source: str = "source_video"
     extra_args: Sequence[str] = field(default_factory=tuple)
     clip_ids: tuple[str, ...] = ()
     overwrite: bool = False
@@ -75,6 +77,60 @@ def _resolve_source_image(manifest_path: Path, record: dict[str, object]) -> Pat
     return images[0]
 
 
+def _resolve_face_crop_dir(manifest_path: Path, record: dict[str, object]) -> Path:
+    return _resolve_manifest_path_reference(manifest_path, str(record["face_crop_dir"]))
+
+
+def _build_face_crop_video(
+    manifest_path: Path,
+    record: dict[str, object],
+    metadata: dict[str, object],
+    work_dir: Path,
+) -> Path:
+    ffmpeg_bin = shutil.which("ffmpeg")
+    if ffmpeg_bin is None:
+        raise RuntimeError("ffmpeg is required to build a face-crop driving video.")
+
+    face_crop_dir = _resolve_face_crop_dir(manifest_path, record)
+    input_pattern = face_crop_dir / "%06d.png"
+    if not face_crop_dir.exists():
+        raise FileNotFoundError(f"Face crop directory not found: {face_crop_dir}")
+    if not next(face_crop_dir.glob("*.png"), None):
+        raise FileNotFoundError(f"No face crop images found in {face_crop_dir}")
+
+    preprocessing = metadata.get("preprocessing", {})
+    fps_value = None
+    if isinstance(preprocessing, dict):
+        fps_value = preprocessing.get("target_fps_effective")
+    if fps_value in {None, 0, 0.0}:
+        fps_value = record.get("fps")
+    fps = float(fps_value or 25.0)
+
+    staged_path = work_dir / f"{record['clip_id']}_face_crops.mp4"
+    command = [
+        ffmpeg_bin,
+        "-y",
+        "-loglevel",
+        "error",
+        "-start_number",
+        "0",
+        "-framerate",
+        f"{fps:.6f}",
+        "-i",
+        str(input_pattern),
+        "-c:v",
+        "libx264",
+        "-pix_fmt",
+        "yuv420p",
+        str(staged_path),
+    ]
+    completed = subprocess.run(command, capture_output=True, text=True, check=False)
+    if completed.returncode != 0:
+        stderr = (completed.stderr or "").strip()
+        raise RuntimeError(f"ffmpeg failed while building face-crop video for {record['clip_id']}: {stderr}")
+    return staged_path
+
+
 def _stage_driving_video(source_video_path: Path, work_dir: Path) -> Path:
     staged_path = work_dir / source_video_path.name
     if staged_path.exists() or staged_path.is_symlink():
@@ -100,12 +156,21 @@ def _extract_single_motion_template(
     source_image = _resolve_source_image(manifest_path, record)
     work_root = config.work_root if config.work_root is not None else clip_dir / ".motion_template_work"
     work_dir = ensure_dir(work_root / str(record["identity_id"]) / str(record["clip_id"]))
-    staged_driving = _stage_driving_video(source_video_path, work_dir)
+    if config.driving_source == "source_video":
+        staged_driving = _stage_driving_video(source_video_path, work_dir)
+    elif config.driving_source == "face_crop_video":
+        staged_driving = _build_face_crop_video(manifest_path, record, metadata, work_dir)
+    else:
+        raise ValueError(f"Unsupported driving_source: {config.driving_source}")
     output_dir = ensure_dir(work_dir / "output")
     template_target = clip_dir / "motion_template.pkl"
 
     if template_target.exists():
         if not config.overwrite:
+            print(
+                f"[extract_motion] clip_id={record['clip_id']} status=skipped_existing template_path={template_target}",
+                flush=True,
+            )
             return {
                 "clip_id": record["clip_id"],
                 "identity_id": record["identity_id"],
@@ -151,11 +216,17 @@ def _extract_single_motion_template(
     metadata["motion_template"] = {
         "template_path": to_repo_relative(template_target),
         "source_image": to_repo_relative(source_image),
+        "driving_source": config.driving_source,
         "staged_driving_path": str(staged_driving),
         "work_dir": str(work_dir),
         "output_dir": str(output_dir),
     }
     _write_metadata(metadata_path, metadata)
+
+    print(
+        f"[extract_motion] clip_id={record['clip_id']} status=completed template_path={template_target}",
+        flush=True,
+    )
 
     return {
         "clip_id": record["clip_id"],
@@ -179,11 +250,20 @@ def extract_motion_templates(
 
     records = _load_manifest_records(manifest_path)
     selected_clip_ids = set(config.clip_ids)
-    clip_results = []
+    selected_records = []
     for record in records:
         clip_id = str(record["clip_id"])
         if selected_clip_ids and clip_id not in selected_clip_ids:
             continue
+        selected_records.append(record)
+
+    clip_results = []
+    total_clips = len(selected_records)
+    for index, record in enumerate(selected_records, start=1):
+        print(
+            f"[extract_motion] clip_id={record['clip_id']} status=starting index={index}/{total_clips}",
+            flush=True,
+        )
         clip_results.append(_extract_single_motion_template(manifest_path, record, config, runner, dry_run))
 
     if dry_run:

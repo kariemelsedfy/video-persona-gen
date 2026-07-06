@@ -30,6 +30,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--python-executable", help="Python executable for the LivePortrait run.")
     parser.add_argument("--work-root", type=Path, help="Optional working directory for staged videos and outputs.")
     parser.add_argument("--output-field", help="Metadata field to update. Defaults to motion_template_path.")
+    parser.add_argument(
+        "--driving-source",
+        choices=["source_video", "face_crop_video"],
+        help="Which clip representation to feed into LivePortrait.",
+    )
     parser.add_argument("--clip-id", action="append", default=[], help="Restrict extraction to one or more clip IDs.")
     parser.add_argument("--extra-arg", action="append", default=[], help="Additional argument to forward.")
     parser.add_argument("--overwrite", action="store_true", help="Overwrite existing motion templates.")
@@ -64,6 +69,7 @@ def main() -> int:
     work_root_value = _get_value(args, config_data, "work_root")
     work_root = Path(work_root_value) if work_root_value else None
     output_field = str(_get_value(args, config_data, "output_field", "motion_template_path"))
+    driving_source = str(_get_value(args, config_data, "driving_source", "source_video"))
     clip_ids = tuple(args.clip_id or config_data.get("clip_ids", []) or [])
     extra_args = tuple(args.extra_arg or config_data.get("extra_args", []) or [])
 
@@ -75,6 +81,7 @@ def main() -> int:
             inference_script=inference_script.resolve() if inference_script else None,
             work_root=work_root.resolve() if work_root else None,
             output_field=output_field,
+            driving_source=driving_source,
             extra_args=extra_args,
             clip_ids=clip_ids,
             overwrite=args.overwrite,
