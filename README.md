@@ -25,16 +25,68 @@ This repository is currently focused on Phase 1:
 
 The project is not currently prioritizing UI work, desktop assistants, or agent integrations.
 
-## Target Pipeline
+## Pipeline Overview
 
-```text
-text
-  -> voice-cloned audio
-  -> audio/prosody features
-  -> personalized audio-to-motion model
-  -> LivePortrait renderer
-  -> generated talking-head video
+The project has two phases that share a **frozen, pretrained LivePortrait backbone**. Phase ① turns one person's real footage into training data and learns their audio-to-motion mapping; phase ② drives that learned model from new audio to synthesize video.
+
+The key idea: the **ground-truth motion is not the raw video and not a render** — it is the motion representation that LivePortrait *extracts from the real footage*. The trainable model learns to predict that representation from audio, and the same representation is what LivePortrait renders back into pixels.
+
+```mermaid
+flowchart TD
+    subgraph PREP["① Data prep &amp; training — learn this person's motion"]
+        direction TB
+        RAW["🎥 Real talking-head footage<br/>(one identity)"]:::real
+        PRE["preprocess_dataset.py"]:::script
+        AUD["audio.wav"]:::artifact
+        CROP["face_crops/ + frames"]:::artifact
+        RAW --> PRE
+        PRE --> AUD
+        PRE --> CROP
+
+        LPX["LivePortrait motion encoder<br/>(pretrained · frozen)"]:::frozen
+        MT["motion_template.pkl<br/>= GROUND-TRUTH motion"]:::truth
+        CROP -->|"extract_motion.py drives LivePortrait<br/>with the real face crops"| LPX
+        LPX --> MT
+
+        AF["audio_features.npz<br/>(prosody)"]:::artifact
+        MF["motion_features.npz<br/>(numeric GT targets)"]:::truth
+        AUD -->|extract_audio_features.py| AF
+        MT -->|extract_motion_features.py| MF
+
+        GRU["🧠 Audio→Motion model, GRU<br/>← the only trainable part"]:::learned
+        AF -->|input| GRU
+        MF -->|training target / loss| GRU
+    end
+
+    GRU -->|"train_motion.py"| CKPT["trained checkpoint"]:::learned
+
+    subgraph GEN["② Generation — drive the avatar from new audio"]
+        direction TB
+        NEWAUD["🔊 New / voice-cloned audio"]:::real
+        NAF["audio features"]:::artifact
+        PMT["predicted_motion_template.pkl"]:::learned
+        SRC["🖼️ Source portrait image"]:::real
+        LPR["LivePortrait renderer<br/>(pretrained · frozen)"]:::frozen
+        OUT["🎬 Generated talking-head video"]:::output
+        NEWAUD --> NAF
+        NAF -->|predict_motion.py| PMT
+        PMT --> LPR
+        SRC --> LPR
+        LPR -->|render_predicted_motion.py| OUT
+    end
+
+    CKPT -.->|drives| PMT
+
+    classDef real fill:#d7f5dd,stroke:#2e7d32,color:#111;
+    classDef truth fill:#fff3c4,stroke:#c79100,color:#111;
+    classDef learned fill:#ffd9b3,stroke:#e65100,color:#111;
+    classDef frozen fill:#dbe7ff,stroke:#3355aa,color:#111;
+    classDef artifact fill:#eeeeee,stroke:#999999,color:#111;
+    classDef script fill:#ffffff,stroke:#bbbbbb,color:#111;
+    classDef output fill:#e7d6ff,stroke:#7b2ff2,color:#111;
 ```
+
+Legend: 🟩 real recorded input · 🟨 ground-truth motion (LivePortrait-extracted) · 🟧 the trainable model &amp; its predictions · 🟦 frozen pretrained LivePortrait · 🟪 final video.
 
 ## Repo Layout
 
@@ -252,6 +304,26 @@ That job runs, in order:
 - `scripts/extract_motion_features.py`
 
 It reuses the persisted LivePortrait weights from `/mnt/hpc/tmp/<user>/video-persona-gen/liveportrait_weights` and refreshes the identity-level `manifest.jsonl` plus `dataset_report.json` in place.
+
+To submit that same manifest-preparation job from a fresh Bowdoin scratch clone and fetch a local inspection bundle when it finishes, use:
+
+```bash
+bash scripts/run_bowdoin_prepare_manifest_roundtrip.sh \
+  --manifest-path /mnt/hpc/tmp/<user>/video-persona-gen/data/processed/hdtf_cmr/manifest.jsonl \
+  --mem 64G \
+  --overwrite-motion-templates \
+  --overwrite-audio-features \
+  --overwrite-motion-features
+```
+
+That wrapper:
+
+- clones the requested Git ref into Bowdoin scratch before submission, so it does not depend on the dirty home checkout
+- passes the remote upstream LivePortrait checkout explicitly, which a fresh clone does not contain
+- submits `slurm/prepare_dataset_manifest.sbatch`
+- polls Slurm from the local side until the job finishes
+- downloads a small inspection bundle into `outputs/bowdoin_prepare_manifest/job-<jobid>/`
+- leaves the refreshed processed identity in place under `/mnt/hpc/tmp/<user>/video-persona-gen/data/processed/<identity>/`
 
 ## Notes
 
