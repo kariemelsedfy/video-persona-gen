@@ -12,7 +12,12 @@ import torch
 from torch.nn.utils import clip_grad_norm_
 from torch.utils.data import DataLoader
 
-from avagen.data.dataset import AudioMotionSequenceDataset, collate_padded_sequences
+from avagen.data.dataset import (
+    AudioMotionSequenceDataset,
+    WindowedAudioMotionDataset,
+    collate_padded_sequences,
+)
+from avagen.data.windowing import WindowingConfig
 from avagen.models.losses import masked_mse_loss, masked_velocity_mse_loss
 from avagen.models.motion_gru import MotionGRU, MotionGRUConfig
 from avagen.training.checkpointing import load_checkpoint, save_checkpoint
@@ -146,6 +151,25 @@ def _run_epoch(
     }
 
 
+def _parse_windowing_config(raw: Any) -> WindowingConfig | None:
+    """Build a WindowingConfig from the ``dataset.windowing`` block, or None."""
+    if not raw:
+        return None
+    if not isinstance(raw, dict):
+        raise ValueError(f"dataset.windowing must be a mapping, got {type(raw).__name__}")
+    if not raw.get("enabled", True):
+        return None
+    if "window_size" not in raw or "stride" not in raw:
+        raise ValueError("dataset.windowing requires 'window_size' and 'stride'.")
+    return WindowingConfig(
+        window_size=int(raw["window_size"]),
+        stride=int(raw["stride"]),
+        train_fraction=float(raw.get("train_fraction", 0.8)),
+        val_fraction=float(raw.get("val_fraction", 0.1)),
+        boundary_gap=int(raw.get("boundary_gap", 0)),
+    )
+
+
 def _build_dataset(
     manifest_path: str | Path,
     *,
@@ -192,23 +216,43 @@ def train_motion_model(config: dict[str, Any]) -> dict[str, Any]:
     if limit is not None:
         limit = int(limit)
 
-    train_dataset = _build_dataset(
-        manifest_path,
-        splits=train_splits,
-        audio_feature_names=audio_feature_names,
-        motion_feature_name=motion_feature_name,
-        limit=limit,
-    )
-    if len(train_dataset) == 0:
-        raise ValueError(f"No training sequences available in {manifest_path} for splits {train_splits}.")
+    windowing_config = _parse_windowing_config(dataset_config.get("windowing"))
 
-    val_dataset = _build_dataset(
-        manifest_path,
-        splits=val_splits,
-        audio_feature_names=audio_feature_names,
-        motion_feature_name=motion_feature_name,
-        limit=limit,
-    )
+    if windowing_config is not None:
+        train_dataset = WindowedAudioMotionDataset(
+            manifest_path,
+            "train",
+            windowing_config,
+            audio_feature_names=audio_feature_names,
+            motion_feature_name=motion_feature_name,
+            limit=limit,
+        )
+        val_dataset = WindowedAudioMotionDataset(
+            manifest_path,
+            "val",
+            windowing_config,
+            audio_feature_names=audio_feature_names,
+            motion_feature_name=motion_feature_name,
+            limit=limit,
+        )
+    else:
+        train_dataset = _build_dataset(
+            manifest_path,
+            splits=train_splits,
+            audio_feature_names=audio_feature_names,
+            motion_feature_name=motion_feature_name,
+            limit=limit,
+        )
+        val_dataset = _build_dataset(
+            manifest_path,
+            splits=val_splits,
+            audio_feature_names=audio_feature_names,
+            motion_feature_name=motion_feature_name,
+            limit=limit,
+        )
+    if len(train_dataset) == 0:
+        mode = "windowed within-clip" if windowing_config is not None else f"splits {train_splits}"
+        raise ValueError(f"No training sequences available in {manifest_path} ({mode}).")
 
     sample = train_dataset[0]
     motion_gru_config = MotionGRUConfig(
@@ -278,6 +322,9 @@ def train_motion_model(config: dict[str, Any]) -> dict[str, Any]:
                 "audio_feature_names": list(audio_feature_names),
                 "motion_feature_name": motion_feature_name,
                 "limit": limit,
+                "windowing": asdict(windowing_config) if windowing_config is not None else None,
+                "num_train_windows": len(train_dataset),
+                "num_val_windows": len(val_dataset),
             },
             "model": asdict(motion_gru_config),
             "training": {
