@@ -6,6 +6,11 @@ experiment_dir: experiments/exp_004_audio_to_motion_gru
 seed: 7
 dataset:
   motion_feature_name: motion_vector
+  # Standardize each motion dimension (z-score) so small-scale components
+  # (lip/eye ratios, head pose) are weighted equally in the loss instead of
+  # collapsing to their mean. Stats are stored in the checkpoint and undone at
+  # prediction time.
+  normalize_motion: true
   # Windowed within-clip temporal split (Option B): every clip is split by time
   # into train/val/test regions, then sliced into fixed-length frame windows.
   # This uses all sessions for training and enables real batching.
@@ -35,6 +40,8 @@ training:
   device: auto
   precision: fp32
   grad_clip_norm: 1.0
-  velocity_loss_weight: 0.1
+  # Raised from 0.1: with standardized targets, weighting frame-to-frame motion
+  # more strongly discourages the model from predicting a near-static sequence.
+  velocity_loss_weight: 0.5
   num_workers: 0
   resume_from: null

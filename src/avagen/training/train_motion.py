@@ -8,6 +8,7 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import torch
 from torch.nn.utils import clip_grad_norm_
 from torch.utils.data import DataLoader
@@ -63,14 +64,37 @@ def _move_batch_to_device(batch: dict[str, Any], device: torch.device) -> dict[s
     return moved
 
 
+def _compute_motion_normalization(dataset: Any) -> tuple[np.ndarray, np.ndarray]:
+    """Per-dimension mean/std of motion features over a dataset's frames.
+
+    Standardizing the target makes every motion component (including the tiny
+    lip/eye-ratio dims) contribute equally to the loss, instead of the loss
+    being dominated by the large-scale components and collapsing the small ones.
+    """
+    frames = [np.asarray(dataset[index].motion_features, dtype=np.float64) for index in range(len(dataset))]
+    if not frames:
+        raise ValueError("Cannot compute motion normalization from an empty dataset.")
+    stacked = np.concatenate(frames, axis=0)
+    mean = stacked.mean(axis=0)
+    std = stacked.std(axis=0)
+    std = np.where(std < 1e-6, 1.0, std)  # leave constant dims unscaled
+    return mean.astype(np.float32), std.astype(np.float32)
+
+
 def _compute_batch_losses(
     model: MotionGRU,
     batch: dict[str, Any],
     velocity_loss_weight: float,
+    motion_mean: torch.Tensor | None = None,
+    motion_std: torch.Tensor | None = None,
 ) -> dict[str, torch.Tensor]:
     predictions = model(batch["audio_features"], lengths=batch["lengths"])
-    reconstruction_loss = masked_mse_loss(predictions, batch["motion_features"], batch["mask"])
-    velocity_loss = masked_velocity_mse_loss(predictions, batch["motion_features"], batch["mask"])
+    targets = batch["motion_features"]
+    if motion_mean is not None and motion_std is not None:
+        # Model learns to predict in the standardized target space.
+        targets = (targets - motion_mean) / motion_std
+    reconstruction_loss = masked_mse_loss(predictions, targets, batch["mask"])
+    velocity_loss = masked_velocity_mse_loss(predictions, targets, batch["mask"])
     total_loss = reconstruction_loss + velocity_loss_weight * velocity_loss
     return {
         "predictions": predictions,
@@ -91,6 +115,8 @@ def _run_epoch(
     velocity_loss_weight: float,
     grad_clip_norm: float | None,
     max_batches: int | None = None,
+    motion_mean: torch.Tensor | None = None,
+    motion_std: torch.Tensor | None = None,
 ) -> dict[str, float]:
     is_training = optimizer is not None
     model.train(is_training)
@@ -118,7 +144,13 @@ def _run_epoch(
             if precision_dtype is not None
             else nullcontext()
         ):
-            loss_bundle = _compute_batch_losses(model, batch, velocity_loss_weight=velocity_loss_weight)
+            loss_bundle = _compute_batch_losses(
+                model,
+                batch,
+                velocity_loss_weight=velocity_loss_weight,
+                motion_mean=motion_mean,
+                motion_std=motion_std,
+            )
 
         total_loss = loss_bundle["total_loss"]
         if is_training and optimizer is not None:
@@ -212,6 +244,7 @@ def train_motion_model(config: dict[str, Any]) -> dict[str, Any]:
         )
     )
     motion_feature_name = str(dataset_config.get("motion_feature_name", "motion_vector"))
+    normalize_motion = bool(dataset_config.get("normalize_motion", False))
     limit = dataset_config.get("limit")
     if limit is not None:
         limit = int(limit)
@@ -267,6 +300,16 @@ def train_motion_model(config: dict[str, Any]) -> dict[str, Any]:
     device = _resolve_device(str(training_config.get("device", "auto")))
     precision_name, precision_dtype = _resolve_precision(str(training_config.get("precision", "fp32")), device)
     model = MotionGRU(motion_gru_config).to(device)
+
+    motion_mean_np: np.ndarray | None = None
+    motion_std_np: np.ndarray | None = None
+    motion_mean_t: torch.Tensor | None = None
+    motion_std_t: torch.Tensor | None = None
+    if normalize_motion:
+        motion_mean_np, motion_std_np = _compute_motion_normalization(train_dataset)
+        motion_mean_t = torch.from_numpy(motion_mean_np).to(device)
+        motion_std_t = torch.from_numpy(motion_std_np).to(device)
+
     optimizer = torch.optim.AdamW(
         model.parameters(),
         lr=float(training_config.get("learning_rate", 1e-4)),
@@ -321,6 +364,7 @@ def train_motion_model(config: dict[str, Any]) -> dict[str, Any]:
                 "val_splits": val_splits,
                 "audio_feature_names": list(audio_feature_names),
                 "motion_feature_name": motion_feature_name,
+                "normalize_motion": normalize_motion,
                 "limit": limit,
                 "windowing": asdict(windowing_config) if windowing_config is not None else None,
                 "num_train_windows": len(train_dataset),
@@ -369,6 +413,8 @@ def train_motion_model(config: dict[str, Any]) -> dict[str, Any]:
             velocity_loss_weight=velocity_loss_weight,
             grad_clip_norm=grad_clip_norm,
             max_batches=max_train_batches,
+            motion_mean=motion_mean_t,
+            motion_std=motion_std_t,
         )
         val_metrics = None
         if val_loader is not None:
@@ -383,6 +429,8 @@ def train_motion_model(config: dict[str, Any]) -> dict[str, Any]:
                     velocity_loss_weight=velocity_loss_weight,
                     grad_clip_norm=None,
                     max_batches=max_val_batches,
+                    motion_mean=motion_mean_t,
+                    motion_std=motion_std_t,
                 )
 
         target_metric = float(val_metrics["loss"] if val_metrics is not None else train_metrics["loss"])
@@ -409,6 +457,11 @@ def train_motion_model(config: dict[str, Any]) -> dict[str, Any]:
             "model_state_dict": model.state_dict(),
             "optimizer_state_dict": optimizer.state_dict(),
             "last_epoch_metrics": epoch_summary,
+            "motion_normalization": (
+                {"mean": motion_mean_np.tolist(), "std": motion_std_np.tolist()}
+                if motion_mean_np is not None
+                else None
+            ),
         }
 
         if target_metric <= best_metric:

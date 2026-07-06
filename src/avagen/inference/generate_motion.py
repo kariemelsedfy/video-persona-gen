@@ -88,6 +88,13 @@ def predict_motion_for_manifest(
 ) -> dict[str, Any]:
     model, checkpoint, torch_device = load_motion_predictor(checkpoint_path, device=device)
     audio_feature_names, motion_feature_name = _load_audio_motion_names(config_path)
+
+    normalization = checkpoint.get("motion_normalization")
+    motion_mean: np.ndarray | None = None
+    motion_std: np.ndarray | None = None
+    if isinstance(normalization, dict):
+        motion_mean = np.asarray(normalization["mean"], dtype=np.float32)
+        motion_std = np.asarray(normalization["std"], dtype=np.float32)
     manifest = Path(manifest_path).expanduser().resolve()
     root = Path(output_root).expanduser().resolve()
     selected_clip_ids = set(clip_ids)
@@ -113,6 +120,9 @@ def predict_motion_for_manifest(
             inputs = torch.from_numpy(sequence.audio_features[None, ...]).to(torch_device)
             lengths = torch.tensor([sequence.audio_features.shape[0]], dtype=torch.long, device=torch_device)
             predicted_vector = model(inputs, lengths=lengths).detach().cpu().numpy()[0]
+            if motion_mean is not None and motion_std is not None:
+                # Model predicts in standardized space; map back to raw motion units.
+                predicted_vector = predicted_vector * motion_std + motion_mean
             predicted_bundle = unflatten_motion_vector(predicted_vector, reference_bundle)
             template = motion_feature_bundle_to_template(predicted_bundle)
 
