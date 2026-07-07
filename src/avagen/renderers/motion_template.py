@@ -119,6 +119,10 @@ def _build_face_crop_video(
         f"{fps:.6f}",
         "-i",
         str(input_pattern),
+        # libx264 + yuv420p requires even dimensions; face crops can be odd
+        # (e.g. 323x323), so crop down to the nearest even size.
+        "-vf",
+        "crop=trunc(iw/2)*2:trunc(ih/2)*2",
         "-c:v",
         "libx264",
         "-pix_fmt",
