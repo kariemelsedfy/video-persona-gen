@@ -1,0 +1,40 @@
+# wav2vec2 variant: learned phonetic audio features (768-dim) instead of mel.
+# Requires audio_features.npz to contain the 'wav2vec' key
+# (scripts/extract_wav2vec_features.py). Higher dropout + weight decay because
+# the 768-dim input is large relative to the tiny dataset.
+manifest_path: data/processed/hdtf_cmr/manifest.jsonl
+experiment_dir: experiments/exp_008_audio_to_motion_gru_w2v_reg
+seed: 7
+dataset:
+  audio_feature_names:
+    - wav2vec
+  motion_feature_name: motion_vector
+  normalize_motion: true
+  windowing:
+    enabled: true
+    window_size: 100
+    stride: 50
+    train_fraction: 0.8
+    val_fraction: 0.1
+    boundary_gap: 0
+  train_splits:
+    - train
+  val_splits:
+    - val
+model:
+  name: gru
+  hidden_size: 128
+  num_layers: 2
+  dropout: 0.4
+  bidirectional: false
+training:
+  batch_size: 8
+  learning_rate: 0.0001
+  weight_decay: 0.001
+  epochs: 60
+  device: auto
+  precision: fp32
+  grad_clip_norm: 1.0
+  velocity_loss_weight: 0.5
+  num_workers: 0
+  resume_from: null
