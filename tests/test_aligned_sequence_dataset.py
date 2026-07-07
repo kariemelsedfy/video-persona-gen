@@ -69,7 +69,9 @@ def test_audio_motion_sequence_dataset_aligns_audio_to_motion(tmp_path: Path) ->
                 "motion_template_path": None,
                 "audio_features_path": str(clip_dir / "audio_features.npz"),
                 "motion_features_path": str(clip_dir / "motion_features.npz"),
-                "fps": 25.0,
+                # Motion is 2 frames at output_fps=2, so the clip fps used to align
+                # motion-frame timestamps to the audio time axis is 2.0.
+                "fps": 2.0,
                 "duration_sec": 0.08,
                 "num_frames": 2,
                 "face_detection_rate": 1.0,

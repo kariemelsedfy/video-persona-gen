@@ -232,6 +232,12 @@ def load_aligned_audio_motion_sequence(
     source_times = np.asarray(audio_bundle["time_axis_sec"], dtype=np.float32)
     motion_values = _flatten_feature_array(np.asarray(motion_bundle[motion_feature_name], dtype=np.float32))
     motion_fps = float(np.asarray(motion_bundle["output_fps"]).item())
+    # LivePortrait stores output_fps as an integer, truncating fractional rates
+    # (e.g. 23.976 -> 23). Using that to place motion frames on the timeline drifts
+    # audio vs motion by seconds over a clip and scrambles the audio->motion labels,
+    # so prefer the clip's true (fractional) fps from the manifest when available.
+    if record.fps and record.fps > 0:
+        motion_fps = float(record.fps)
     target_times = (np.arange(motion_values.shape[0], dtype=np.float32) / max(motion_fps, 1e-8)).astype(np.float32)
 
     aligned_audio_columns = []
