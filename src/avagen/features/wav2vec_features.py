@@ -40,20 +40,39 @@ def _load_wav_mono(path: str | Path) -> tuple[np.ndarray, int]:
     return samples, sample_rate
 
 
-def extract_wav2vec_matrix(audio_path: str | Path, layer: int = 8) -> tuple[np.ndarray, np.ndarray]:
-    """Return (frames x 768) wav2vec2 features and their (frames,) time axis in seconds."""
+def extract_wav2vec_matrix(
+    audio_path: str | Path, layer: int = 8, chunk_seconds: float = 20.0
+) -> tuple[np.ndarray, np.ndarray]:
+    """Return (frames x 768) wav2vec2 features and their (frames,) time axis in seconds.
+
+    wav2vec2 uses full self-attention (O(T^2)), so a multi-minute clip is
+    processed in fixed-length chunks and the per-chunk feature frames are
+    concatenated. The receptive field of each frame is short, so chunking only
+    perturbs a few frames at chunk boundaries.
+    """
     import torch
 
     samples, sample_rate = _load_wav_mono(audio_path)
     if sample_rate != 16000:
         raise ValueError(f"wav2vec2 expects 16 kHz audio, got {sample_rate} Hz for {audio_path}")
-    waveform = torch.from_numpy(samples)[None, :]
     model = _get_model()
+    chunk_samples = max(int(chunk_seconds * sample_rate), sample_rate)
+
+    chunks = []
     with torch.inference_mode():
-        layer_outputs, _ = model.extract_features(waveform)
-    if not 0 <= layer < len(layer_outputs):
-        raise ValueError(f"layer {layer} out of range for {len(layer_outputs)} wav2vec layers")
-    features = layer_outputs[layer][0].cpu().numpy().astype(np.float32)  # (T, 768)
+        for start in range(0, samples.shape[0], chunk_samples):
+            segment = samples[start : start + chunk_samples]
+            if segment.shape[0] < 400:  # shorter than one conv kernel; skip tiny tail
+                continue
+            waveform = torch.from_numpy(segment)[None, :]
+            layer_outputs, _ = model.extract_features(waveform)
+            if not 0 <= layer < len(layer_outputs):
+                raise ValueError(f"layer {layer} out of range for {len(layer_outputs)} wav2vec layers")
+            chunks.append(layer_outputs[layer][0].cpu().numpy().astype(np.float32))
+
+    if not chunks:
+        return np.zeros((0, 768), dtype=np.float32), np.zeros((0,), dtype=np.float32)
+    features = np.concatenate(chunks, axis=0)  # (T, 768)
     duration = samples.shape[0] / float(sample_rate)
     n = features.shape[0]
     time_axis = (np.arange(n, dtype=np.float32) * (duration / max(n, 1))).astype(np.float32)
