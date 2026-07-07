@@ -21,6 +21,7 @@ from avagen.features.motion_features import (
     summarize_motion_features,
     unflatten_motion_vector,
 )
+from avagen.features.motion_postprocess import apply_motion_postprocess
 from avagen.models.motion_gru import MotionGRU, MotionGRUConfig
 from avagen.training.checkpointing import load_checkpoint
 from avagen.utils.config import load_config
@@ -57,6 +58,15 @@ def _load_audio_motion_names(config_path: str | Path) -> tuple[tuple[str, ...], 
     return audio_feature_names, motion_feature_name
 
 
+def _load_postprocess(config_path: str | Path) -> dict[str, Any]:
+    config_data = load_config(config_path)
+    if isinstance(config_data, dict):
+        section = config_data.get("motion_postprocess")
+        if isinstance(section, dict):
+            return section
+    return {}
+
+
 def load_motion_predictor(
     checkpoint_path: str | Path,
     *,
@@ -88,6 +98,7 @@ def predict_motion_for_manifest(
 ) -> dict[str, Any]:
     model, checkpoint, torch_device = load_motion_predictor(checkpoint_path, device=device)
     audio_feature_names, motion_feature_name = _load_audio_motion_names(config_path)
+    postprocess = _load_postprocess(config_path)
 
     normalization = checkpoint.get("motion_normalization")
     motion_mean: np.ndarray | None = None
@@ -124,6 +135,9 @@ def predict_motion_for_manifest(
                 # Model predicts in standardized space; map back to raw motion units.
                 predicted_vector = predicted_vector * motion_std + motion_mean
             predicted_bundle = unflatten_motion_vector(predicted_vector, reference_bundle)
+            if postprocess:
+                fps = float(record.fps) if record.fps else float(np.asarray(reference_bundle["output_fps"]).item())
+                predicted_bundle = apply_motion_postprocess(predicted_bundle, postprocess, fps)
             template = motion_feature_bundle_to_template(predicted_bundle)
 
             clip_output_dir = root / record.identity_id / record.clip_id

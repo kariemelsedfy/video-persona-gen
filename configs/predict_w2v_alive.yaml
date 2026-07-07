@@ -1,0 +1,21 @@
+# Prediction config for the wav2vec model with "alive" post-processing.
+# Used as --model-config-path for the render roundtrip. Only audio_feature_names
+# and motion_postprocess are read at prediction time (the model itself is rebuilt
+# from the checkpoint). Render with --extra-arg=--flag-eye-retargeting so the
+# injected blinks drive the eyes.
+dataset:
+  audio_feature_names:
+    - wav2vec
+  motion_feature_name: motion_vector
+motion_postprocess:
+  # Amplify mouth/expression motion around its temporal mean (MSE damps it).
+  expression_scale: 2.0
+  rotation_scale: 1.0
+  translation_scale: 1.0
+  # Inject natural blinks (audio can't predict them); needs --flag-eye-retargeting.
+  add_blinks: true
+  blink_interval_sec: 3.5
+  blink_jitter_sec: 1.5
+  blink_ms: 180.0
+  blink_closed_value: 0.02
+  blink_seed: 0
