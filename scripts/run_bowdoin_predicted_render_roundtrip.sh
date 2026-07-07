@@ -230,7 +230,9 @@ if (( ${#clip_ids[@]} > 0 )); then
 fi
 if (( ${#extra_args[@]} > 0 )); then
   for extra_arg in "${extra_args[@]}"; do
-    render_args+=(--extra-arg "$extra_arg")
+    # Use = form so values starting with '-' (e.g. LivePortrait --driving-multiplier)
+    # are not misread by argparse as the next option.
+    render_args+=("--extra-arg=$extra_arg")
   done
 fi
 
