@@ -137,7 +137,9 @@ def predict_motion_for_manifest(
             predicted_bundle = unflatten_motion_vector(predicted_vector, reference_bundle)
             if postprocess:
                 fps = float(record.fps) if record.fps else float(np.asarray(reference_bundle["output_fps"]).item())
-                predicted_bundle = apply_motion_postprocess(predicted_bundle, postprocess, fps)
+                predicted_bundle = apply_motion_postprocess(
+                    predicted_bundle, postprocess, fps, reference_bundle=reference_bundle
+                )
             template = motion_feature_bundle_to_template(predicted_bundle)
 
             clip_output_dir = root / record.identity_id / record.clip_id

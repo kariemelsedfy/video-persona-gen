@@ -53,45 +53,62 @@ def generate_blink_signal(
     return signal
 
 
-def inject_blinks(
-    eye_ratio: np.ndarray,
+# LivePortrait expression keypoints that control the eyelids (21-keypoint layout).
+EYE_EXPRESSION_KEYPOINTS = (11, 13, 15, 16, 18)
+
+
+def inject_expression_blinks(
+    expression: np.ndarray,
+    reference_expression: np.ndarray,
+    reference_eye_ratio: np.ndarray,
     fps: float,
     *,
-    closed_value: float = 0.02,
+    closed_percentile: float = 12.0,
+    open_percentile: float = 70.0,
     interval_sec: float = 3.5,
     jitter_sec: float = 1.5,
     blink_ms: float = 180.0,
     seed: int = 0,
 ) -> np.ndarray:
-    """Replace a (T, n_eyes) eye-open array with a synthetic blinking signal.
+    """Overwrite the eyelid expression keypoints with synthetic blinks.
 
-    The open baseline is each eye's own mean so the injected motion matches the
-    predicted resting openness. Both eyes share blink timing (people blink
-    together).
+    Audio can't predict blinks, so we animate the eyes on the normal expression
+    path (NOT LivePortrait's eye-retargeting flag, which suppresses base motion).
+    The open and closed eyelid poses are learned from the clip's own ground truth
+    (frames with the highest / lowest measured eye openness), so blinks match the
+    person's real eye shape.
     """
-    array = np.asarray(eye_ratio, dtype=np.float32)
-    if array.ndim != 2 or array.shape[0] == 0:
-        return array
-    n_frames = array.shape[0]
-    open_values = array.mean(axis=0)
+    expression = np.asarray(expression, dtype=np.float32).copy()  # (T, 21, 3)
+    ref_exp = np.asarray(reference_expression, dtype=np.float32)  # (Tg, 21, 3)
+    eye = np.asarray(reference_eye_ratio, dtype=np.float32)
+    if expression.ndim != 3 or ref_exp.ndim != 3 or expression.shape[0] == 0:
+        return expression
+    openness = eye.mean(axis=1) if eye.ndim == 2 else eye
+    if openness.shape[0] != ref_exp.shape[0]:
+        return expression
+    low = np.percentile(openness, closed_percentile)
+    high = np.percentile(openness, open_percentile)
+    closed_frames = openness <= low
+    open_frames = openness >= high
+    if not closed_frames.any() or not open_frames.any():
+        return expression
+
+    idx = list(EYE_EXPRESSION_KEYPOINTS)
+    closed_pose = ref_exp[closed_frames][:, idx, :].mean(axis=0)  # (5, 3)
+    open_pose = ref_exp[open_frames][:, idx, :].mean(axis=0)  # (5, 3)
+
     base = generate_blink_signal(
-        n_frames,
-        fps,
-        open_value=1.0,
-        closed_value=0.0,
-        interval_sec=interval_sec,
-        jitter_sec=jitter_sec,
-        blink_ms=blink_ms,
-        seed=seed,
-    )  # in [0, 1]; 1 = open, dips toward 0 at blinks
-    out = np.empty_like(array)
-    for eye in range(array.shape[1]):
-        open_v = float(open_values[eye])
-        out[:, eye] = closed_value + (open_v - closed_value) * base
-    return out.astype(np.float32)
+        expression.shape[0], fps, open_value=1.0, closed_value=0.0,
+        interval_sec=interval_sec, jitter_sec=jitter_sec, blink_ms=blink_ms, seed=seed,
+    )  # 1 = open, dips to 0 during blinks
+    weight = (1.0 - base)[:, None, None]  # (T,1,1): 0 open, 1 fully closed
+    expression[:, idx, :] = open_pose[None] + weight * (closed_pose - open_pose)[None]
+    return expression
 
 
-def apply_motion_postprocess(bundle: dict, config: dict, fps: float) -> dict:
+def apply_motion_postprocess(
+    bundle: dict, config: dict, fps: float, reference_bundle: dict | None = None
+) -> dict:
     """Apply per-component scaling and blink injection to a predicted bundle."""
     if not config:
         return bundle
@@ -105,11 +122,18 @@ def apply_motion_postprocess(bundle: dict, config: dict, fps: float) -> dict:
         if scale != 1.0 and name in bundle:
             bundle[name] = scale_component_deviation(bundle[name], scale)
 
-    if config.get("add_blinks", False) and "eye_ratio" in bundle:
-        bundle["eye_ratio"] = inject_blinks(
-            bundle["eye_ratio"],
+    if (
+        config.get("add_blinks", False)
+        and "expression" in bundle
+        and reference_bundle is not None
+        and "expression" in reference_bundle
+        and "eye_ratio" in reference_bundle
+    ):
+        bundle["expression"] = inject_expression_blinks(
+            bundle["expression"],
+            reference_bundle["expression"],
+            reference_bundle["eye_ratio"],
             fps=fps,
-            closed_value=float(config.get("blink_closed_value", 0.02)),
             interval_sec=float(config.get("blink_interval_sec", 3.5)),
             jitter_sec=float(config.get("blink_jitter_sec", 1.5)),
             blink_ms=float(config.get("blink_ms", 180.0)),
