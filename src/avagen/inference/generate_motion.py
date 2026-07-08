@@ -78,7 +78,13 @@ def load_motion_predictor(
     if not isinstance(model_config, dict):
         raise ValueError(f"Checkpoint {checkpoint_path} does not contain a model_config mapping.")
 
-    model = MotionGRU(MotionGRUConfig(**model_config)).to(torch_device)
+    model_type = str(checkpoint.get("model_type", "gru"))
+    if model_type == "flow":
+        from avagen.models.motion_flow import MotionFlowConfig, MotionFlowModel
+
+        model = MotionFlowModel(MotionFlowConfig(**model_config)).to(torch_device)
+    else:
+        model = MotionGRU(MotionGRUConfig(**model_config)).to(torch_device)
     model_state = checkpoint.get("model_state_dict")
     if not isinstance(model_state, dict):
         raise ValueError(f"Checkpoint {checkpoint_path} does not contain a model_state_dict mapping.")
@@ -99,6 +105,8 @@ def predict_motion_for_manifest(
     model, checkpoint, torch_device = load_motion_predictor(checkpoint_path, device=device)
     audio_feature_names, motion_feature_name = _load_audio_motion_names(config_path)
     postprocess = _load_postprocess(config_path)
+    model_type = str(checkpoint.get("model_type", "gru"))
+    flow_steps = int(checkpoint.get("flow_sample_steps", 20))
 
     normalization = checkpoint.get("motion_normalization")
     motion_mean: np.ndarray | None = None
@@ -129,8 +137,13 @@ def predict_motion_for_manifest(
             )
             reference_bundle = load_motion_features(record)
             inputs = torch.from_numpy(sequence.audio_features[None, ...]).to(torch_device)
-            lengths = torch.tensor([sequence.audio_features.shape[0]], dtype=torch.long, device=torch_device)
-            predicted_vector = model(inputs, lengths=lengths).detach().cpu().numpy()[0]
+            if model_type == "flow":
+                from avagen.models.motion_flow import sample_motion
+
+                predicted_vector = sample_motion(model, inputs, steps=flow_steps).detach().cpu().numpy()[0]
+            else:
+                lengths = torch.tensor([sequence.audio_features.shape[0]], dtype=torch.long, device=torch_device)
+                predicted_vector = model(inputs, lengths=lengths).detach().cpu().numpy()[0]
             if motion_mean is not None and motion_std is not None:
                 # Model predicts in standardized space; map back to raw motion units.
                 predicted_vector = predicted_vector * motion_std + motion_mean
