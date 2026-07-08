@@ -1,0 +1,10 @@
+# Flow prediction tuned for a calm speaker (CMR): flow over-generates expression
+# (~2x) and translation (~3.8x) relative to her calmer real motion, so scale
+# those components down toward natural amplitude.
+dataset:
+  audio_feature_names:
+    - wav2vec
+  motion_feature_name: motion_vector
+motion_postprocess:
+  expression_scale: 0.5
+  translation_scale: 0.28
