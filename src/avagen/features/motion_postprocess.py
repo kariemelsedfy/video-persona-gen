@@ -106,6 +106,59 @@ def inject_expression_blinks(
     return expression
 
 
+def _smooth_signal(n_frames: int, fps: float, amplitude: float, rng, n_components: int = 3,
+                   min_period: float = 3.0, max_period: float = 11.0) -> np.ndarray:
+    """Slow, smooth, natural-looking 1D signal (sum of low-frequency sinusoids)."""
+    if n_frames <= 0 or amplitude == 0.0:
+        return np.zeros(max(n_frames, 0), dtype=np.float32)
+    t = np.arange(n_frames, dtype=np.float64) / max(fps, 1e-6)
+    sig = np.zeros(n_frames, dtype=np.float64)
+    for _ in range(n_components):
+        period = rng.uniform(min_period, max_period)
+        phase = rng.uniform(0.0, 2.0 * np.pi)
+        weight = rng.uniform(0.5, 1.0)
+        sig += weight * np.sin(2.0 * np.pi * t / period + phase)
+    peak = np.max(np.abs(sig))
+    if peak > 1e-8:
+        sig = sig / peak * amplitude
+    return sig.astype(np.float32)
+
+
+def _euler_to_rotation(yaw: np.ndarray, pitch: np.ndarray, roll: np.ndarray) -> np.ndarray:
+    """Per-frame ZYX Euler angles (radians) -> (T, 3, 3) rotation matrices."""
+    n = yaw.shape[0]
+    cy, sy = np.cos(yaw), np.sin(yaw)
+    cx, sx = np.cos(pitch), np.sin(pitch)
+    cz, sz = np.cos(roll), np.sin(roll)
+    ry = np.zeros((n, 3, 3)); ry[:, 0, 0] = cy; ry[:, 0, 2] = sy; ry[:, 1, 1] = 1; ry[:, 2, 0] = -sy; ry[:, 2, 2] = cy
+    rx = np.zeros((n, 3, 3)); rx[:, 0, 0] = 1; rx[:, 1, 1] = cx; rx[:, 1, 2] = -sx; rx[:, 2, 1] = sx; rx[:, 2, 2] = cx
+    rz = np.zeros((n, 3, 3)); rz[:, 0, 0] = cz; rz[:, 0, 1] = -sz; rz[:, 1, 0] = sz; rz[:, 1, 1] = cz; rz[:, 2, 2] = 1
+    return np.matmul(np.matmul(rz, ry), rx)
+
+
+def inject_idle_head_motion(
+    rotation: np.ndarray, fps: float, *, yaw_deg: float = 4.0, pitch_deg: float = 3.0,
+    roll_deg: float = 2.0, seed: int = 0,
+) -> np.ndarray:
+    """Add gentle procedural head sway to predicted rotation matrices.
+
+    Head pose is largely NOT audio-predictable, so the model outputs a near-still
+    head. This composes a slow, smooth synthetic rotation (a few degrees of
+    yaw/pitch/roll) onto the prediction so the avatar reads as alive rather than
+    frozen. Result is re-orthonormalized downstream during template reconstruction.
+    """
+    mats = np.asarray(rotation, dtype=np.float32).reshape(-1, 3, 3)
+    n = mats.shape[0]
+    if n == 0:
+        return mats
+    rng = np.random.default_rng(seed)
+    yaw = np.radians(_smooth_signal(n, fps, yaw_deg, rng))
+    pitch = np.radians(_smooth_signal(n, fps, pitch_deg, rng))
+    roll = np.radians(_smooth_signal(n, fps, roll_deg, rng))
+    idle = _euler_to_rotation(yaw, pitch, roll).astype(np.float32)
+    return np.matmul(idle, mats).astype(np.float32)
+
+
 def apply_motion_postprocess(
     bundle: dict, config: dict, fps: float, reference_bundle: dict | None = None
 ) -> dict:
@@ -121,6 +174,16 @@ def apply_motion_postprocess(
     for name, scale in component_scales.items():
         if scale != 1.0 and name in bundle:
             bundle[name] = scale_component_deviation(bundle[name], scale)
+
+    if config.get("add_idle_motion", False) and "rotation_matrix" in bundle:
+        bundle["rotation_matrix"] = inject_idle_head_motion(
+            bundle["rotation_matrix"],
+            fps=fps,
+            yaw_deg=float(config.get("idle_yaw_deg", 4.0)),
+            pitch_deg=float(config.get("idle_pitch_deg", 3.0)),
+            roll_deg=float(config.get("idle_roll_deg", 2.0)),
+            seed=int(config.get("idle_seed", 0)),
+        )
 
     if (
         config.get("add_blinks", False)

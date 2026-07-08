@@ -10,10 +10,17 @@ dataset:
   motion_feature_name: motion_vector
 motion_postprocess:
   # Amplify mouth/expression motion around its temporal mean (MSE damps it).
-  expression_scale: 2.0
+  expression_scale: 3.0
   rotation_scale: 1.0
   translation_scale: 1.0
-  # Inject natural blinks (audio can't predict them); needs --flag-eye-retargeting.
+  # Inject procedural head sway (head pose is not audio-predictable, so the model
+  # outputs a near-still head; this makes the avatar read as alive not frozen).
+  add_idle_motion: true
+  idle_yaw_deg: 4.0
+  idle_pitch_deg: 3.0
+  idle_roll_deg: 2.0
+  idle_seed: 0
+  # Inject natural blinks into the eyelid expression keypoints (normal path).
   add_blinks: true
   blink_interval_sec: 3.5
   blink_jitter_sec: 1.5

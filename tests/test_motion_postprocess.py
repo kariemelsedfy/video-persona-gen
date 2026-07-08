@@ -7,8 +7,29 @@ from avagen.features.motion_postprocess import (
     apply_motion_postprocess,
     generate_blink_signal,
     inject_expression_blinks,
+    inject_idle_head_motion,
     scale_component_deviation,
 )
+
+
+def _is_rotation(mat: np.ndarray, tol: float = 1e-3) -> bool:
+    return (
+        float(np.max(np.abs(mat @ mat.T - np.eye(3)))) < tol
+        and abs(float(np.linalg.det(mat)) - 1.0) < tol
+    )
+
+
+def test_idle_head_motion_adds_smooth_variation_and_stays_rotation() -> None:
+    still = np.tile(np.eye(3, dtype=np.float32), (200, 1, 1))  # frozen head
+    out = inject_idle_head_motion(still, fps=25.0, yaw_deg=5, pitch_deg=3, roll_deg=2, seed=0)
+    assert out.shape == (200, 3, 3)
+    for i in range(0, 200, 40):
+        assert _is_rotation(out[i])  # still valid rotations
+    # the frozen head now varies over time
+    assert out.std(axis=0).max() > 1e-3
+    # motion is gentle (small angles) and smooth (small frame-to-frame change)
+    frame_delta = np.abs(np.diff(out, axis=0)).max()
+    assert frame_delta < 0.05
 
 
 def test_scale_preserves_mean_and_amplifies_deviation() -> None:
