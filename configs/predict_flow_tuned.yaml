@@ -1,0 +1,9 @@
+# Flow prediction with the head-translation over-shoot clamped. Flow samples
+# full-amplitude motion natively; it just over-generates head translation
+# (~3x), so scale that component's deviation down. Everything else is raw flow.
+dataset:
+  audio_feature_names:
+    - wav2vec
+  motion_feature_name: motion_vector
+motion_postprocess:
+  translation_scale: 0.35
