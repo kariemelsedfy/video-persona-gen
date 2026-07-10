@@ -36,13 +36,12 @@ def main() -> int:
         record, audio_feature_names=(args.audio_feature_name,), motion_feature_name="motion_vector"
     )
     audio = seq.audio_features
-    results = {"clip_id": args.clip_id,
-               "ground_truth": compute_sync_confidence(model, audio, seq.motion_features, ckpt, device=args.device)}
+    results = {"ground_truth": compute_sync_confidence(model, audio, seq.motion_features, ckpt, device=args.device)}
     for pf in args.predicted_features:
         mv = np.load(pf)["motion_vector"]
-        results[str(pf)] = compute_sync_confidence(model, audio, mv, ckpt, device=args.device)
+        results[Path(pf).parent.name or str(pf)] = compute_sync_confidence(model, audio, mv, ckpt, device=args.device)
 
-    # compact summary
+    print("clip:", args.clip_id)
     print(json.dumps({k: {"sync_confidence": round(v["sync_confidence"], 4),
                           "best_offset": v["best_offset"]} for k, v in results.items()}, indent=2))
     return 0
