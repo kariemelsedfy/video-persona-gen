@@ -165,6 +165,17 @@ def apply_motion_postprocess(
     """Apply per-component scaling and blink injection to a predicted bundle."""
     if not config:
         return bundle
+
+    # Global calm/energy knob: scale every geometry+expression component's motion
+    # around its temporal mean. <1 tames "over the top" generated motion; applied
+    # before the per-component scales so those remain relative adjustments.
+    motion_scale = float(config.get("motion_scale", 1.0))
+    if motion_scale != 1.0:
+        for name in ("scale", "rotation_matrix", "expression", "translation",
+                     "keypoints", "source_keypoints"):
+            if name in bundle:
+                bundle[name] = scale_component_deviation(bundle[name], motion_scale)
+
     component_scales = {
         "expression": float(config.get("expression_scale", 1.0)),
         "rotation_matrix": float(config.get("rotation_scale", 1.0)),
