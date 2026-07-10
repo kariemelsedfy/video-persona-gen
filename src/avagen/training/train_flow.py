@@ -27,14 +27,19 @@ from avagen.utils.config import dump_json
 from avagen.utils.seed import set_seed
 
 
-def _flow_batch_loss(model, batch, mean, std):
+def _flow_batch_loss(model, batch, mean, std, p_uncond: float = 0.0):
     x1 = (batch["motion_features"] - mean) / std        # standardized data motion
     x0 = torch.randn_like(x1)                            # gaussian prior
     t = torch.rand(x1.shape[0], device=x1.device)        # flow time in [0,1]
     t_b = t.view(-1, 1, 1)
     xt = (1.0 - t_b) * x0 + t_b * x1                     # rectified-flow interpolation
     v_target = x1 - x0                                   # constant target velocity
-    v_pred = model(xt, batch["audio_features"], t)
+    # classifier-free guidance: randomly drop audio so the model also learns the
+    # unconditional velocity field.
+    audio_drop = None
+    if p_uncond > 0.0:
+        audio_drop = torch.rand(x1.shape[0], device=x1.device) < p_uncond
+    v_pred = model(xt, batch["audio_features"], t, audio_drop=audio_drop)
     return masked_mse_loss(v_pred, v_target, batch["mask"])
 
 
@@ -95,6 +100,7 @@ def train_flow_model(config: dict[str, Any]) -> dict[str, Any]:
     grad_clip = training_config.get("grad_clip_norm", 1.0)
     grad_clip = None if grad_clip is None else float(grad_clip)
     sample_steps = int(training_config.get("flow_sample_steps", 20))
+    p_uncond = float(training_config.get("cfg_p_uncond", 0.0))
 
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True,
                               num_workers=0, collate_fn=_sequence_collate)
@@ -128,7 +134,7 @@ def train_flow_model(config: dict[str, Any]) -> dict[str, Any]:
             if frames == 0:
                 continue
             optimizer.zero_grad(set_to_none=True)
-            loss = _flow_batch_loss(model, batch, mean, std)
+            loss = _flow_batch_loss(model, batch, mean, std, p_uncond=p_uncond)
             loss.backward()
             if grad_clip:
                 torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
@@ -157,7 +163,7 @@ def train_flow_model(config: dict[str, Any]) -> dict[str, Any]:
         state = {
             "epoch": epoch, "best_epoch": best_epoch, "best_metric": best_metric,
             "model_type": "flow", "model_config": asdict(flow_config),
-            "flow_sample_steps": sample_steps,
+            "flow_sample_steps": sample_steps, "cfg_p_uncond": p_uncond,
             "model_state_dict": model.state_dict(),
             "optimizer_state_dict": optimizer.state_dict(),
             "motion_normalization": {"mean": motion_mean_np.tolist(), "std": motion_std_np.tolist()},

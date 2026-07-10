@@ -88,7 +88,9 @@ def load_motion_predictor(
     model_state = checkpoint.get("model_state_dict")
     if not isinstance(model_state, dict):
         raise ValueError(f"Checkpoint {checkpoint_path} does not contain a model_state_dict mapping.")
-    model.load_state_dict(model_state)
+    # strict=False so flow checkpoints trained before the CFG null_cond param
+    # still load (that param stays at its zero init and is unused without CFG).
+    model.load_state_dict(model_state, strict=(model_type != "flow"))
     model.eval()
     return model, checkpoint, torch_device
 
@@ -107,6 +109,7 @@ def predict_motion_for_manifest(
     postprocess = _load_postprocess(config_path)
     model_type = str(checkpoint.get("model_type", "gru"))
     flow_steps = int(checkpoint.get("flow_sample_steps", 20))
+    guidance_weight = float(postprocess.get("guidance_weight", 1.0)) if postprocess else 1.0
 
     normalization = checkpoint.get("motion_normalization")
     motion_mean: np.ndarray | None = None
@@ -138,9 +141,13 @@ def predict_motion_for_manifest(
             reference_bundle = load_motion_features(record)
             inputs = torch.from_numpy(sequence.audio_features[None, ...]).to(torch_device)
             if model_type == "flow":
-                from avagen.models.motion_flow import sample_motion
+                from avagen.models.motion_flow import sample_motion, sample_motion_cfg
 
-                predicted_vector = sample_motion(model, inputs, steps=flow_steps).detach().cpu().numpy()[0]
+                if guidance_weight != 1.0:
+                    sampled = sample_motion_cfg(model, inputs, steps=flow_steps, guidance_weight=guidance_weight)
+                else:
+                    sampled = sample_motion(model, inputs, steps=flow_steps)
+                predicted_vector = sampled.detach().cpu().numpy()[0]
             else:
                 lengths = torch.tensor([sequence.audio_features.shape[0]], dtype=torch.long, device=torch_device)
                 predicted_vector = model(inputs, lengths=lengths).detach().cpu().numpy()[0]

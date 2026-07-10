@@ -76,16 +76,24 @@ class MotionFlowModel(nn.Module):
             nn.Dropout(config.dropout),
             nn.Linear(out_dim, config.motion_size),
         )
+        # Learned unconditional embedding for classifier-free guidance: used in
+        # place of the audio projection when audio is dropped.
+        self.null_cond = nn.Parameter(torch.zeros(config.hidden_size))
 
     def forward(
         self,
         noisy_motion: torch.Tensor,   # (B, T, motion_size)
         audio_features: torch.Tensor, # (B, T, audio_size)
         flow_time: torch.Tensor,      # (B,) in [0,1]
+        audio_drop: torch.Tensor | None = None,  # (B,) bool: True -> unconditional
     ) -> torch.Tensor:
         time_emb = sinusoidal_time_embedding(flow_time, self.config.time_embed_dim)
         time_h = self.time_mlp(time_emb).unsqueeze(1)  # (B,1,H)
-        h = self.motion_proj(noisy_motion) + self.audio_proj(audio_features) + time_h
+        audio_h = self.audio_proj(audio_features)      # (B,T,H)
+        if audio_drop is not None:
+            null = self.null_cond.view(1, 1, -1)
+            audio_h = torch.where(audio_drop.view(-1, 1, 1), null, audio_h)
+        h = self.motion_proj(noisy_motion) + audio_h + time_h
         encoded, _ = self.gru(h)
         return self.head(encoded)
 
@@ -105,5 +113,36 @@ def sample_motion(
     for i in range(steps):
         t = torch.full((b,), i * dt, device=device)
         v = model(x, audio_features, t)
+        x = x + v * dt
+    return x
+
+
+@torch.no_grad()
+def sample_motion_cfg(
+    model: MotionFlowModel,
+    audio_features: torch.Tensor,
+    steps: int = 20,
+    guidance_weight: float = 1.0,
+    generator: torch.Generator | None = None,
+) -> torch.Tensor:
+    """Classifier-free guided sampling.
+
+    v = v_uncond + w * (v_cond - v_uncond). w=1 recovers plain conditional
+    sampling; w>1 pushes motion to adhere harder to the audio (tighter lip-sync).
+    """
+    device = audio_features.device
+    b, seq_len, _ = audio_features.shape
+    x = torch.randn(b, seq_len, model.config.motion_size, device=device, generator=generator)
+    drop_true = torch.ones(b, dtype=torch.bool, device=device)
+    drop_false = torch.zeros(b, dtype=torch.bool, device=device)
+    dt = 1.0 / steps
+    for i in range(steps):
+        t = torch.full((b,), i * dt, device=device)
+        v_cond = model(x, audio_features, t, audio_drop=drop_false)
+        if guidance_weight == 1.0:
+            v = v_cond
+        else:
+            v_uncond = model(x, audio_features, t, audio_drop=drop_true)
+            v = v_uncond + guidance_weight * (v_cond - v_uncond)
         x = x + v * dt
     return x

@@ -8,8 +8,27 @@ from avagen.models.motion_flow import (  # noqa: E402
     MotionFlowConfig,
     MotionFlowModel,
     sample_motion,
+    sample_motion_cfg,
     sinusoidal_time_embedding,
 )
+
+
+def test_audio_drop_changes_output_and_cfg_sampler_shapes() -> None:
+    cfg = MotionFlowConfig(motion_size=205, audio_size=768, hidden_size=64, num_layers=2)
+    model = MotionFlowModel(cfg).eval()
+    # make null_cond nonzero so uncond path differs from a zero audio projection
+    with torch.no_grad():
+        model.null_cond.add_(1.0)
+    xt = torch.randn(2, 30, 205)
+    audio = torch.randn(2, 30, 768)
+    t = torch.rand(2)
+    drop = torch.tensor([True, False])
+    v_drop = model(xt, audio, t, audio_drop=drop)
+    v_none = model(xt, audio, t)
+    assert not torch.allclose(v_drop, v_none)  # dropping audio changes the field
+    out = sample_motion_cfg(model, audio, steps=5, guidance_weight=2.0)
+    assert out.shape == (2, 30, 205)
+    assert torch.isfinite(out).all()
 
 
 def test_time_embedding_shape_and_varies_with_t() -> None:
