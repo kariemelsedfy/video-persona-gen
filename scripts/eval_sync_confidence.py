@@ -39,7 +39,9 @@ def main() -> int:
     results = {"ground_truth": compute_sync_confidence(model, audio, seq.motion_features, ckpt, device=args.device)}
     for pf in args.predicted_features:
         mv = np.load(pf)["motion_vector"]
-        results[Path(pf).parent.name or str(pf)] = compute_sync_confidence(model, audio, mv, ckpt, device=args.device)
+        parents = Path(pf).parents
+        label = parents[2].name if len(parents) > 2 else Path(pf).stem  # e.g. huberman-flow
+        results[label] = compute_sync_confidence(model, audio, mv, ckpt, device=args.device)
 
     print("clip:", args.clip_id)
     print(json.dumps({k: {"sync_confidence": round(v["sync_confidence"], 4),
