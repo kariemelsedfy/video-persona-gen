@@ -138,17 +138,37 @@ def unflatten_motion_vector(motion_vector: np.ndarray, reference_bundle: dict[st
     return bundle
 
 
+def _project_to_rotation(matrices: np.ndarray) -> np.ndarray:
+    """Project each 3x3 matrix to the nearest valid rotation (orthonormal, det +1).
+
+    Predicted rotation entries are regressed independently and are not guaranteed
+    to form a valid rotation matrix (observed det ~1.03), which skews the rendered
+    head pose. SVD projection maps them to the closest proper rotation. Valid
+    rotations (e.g. ground-truth templates) are returned essentially unchanged.
+    """
+    mats = np.asarray(matrices, dtype=np.float32).reshape(-1, 3, 3)
+    u, _, vt = np.linalg.svd(mats)
+    rot = np.matmul(u, vt)
+    dets = np.linalg.det(rot)
+    flip = dets < 0
+    if np.any(flip):
+        u[flip, :, -1] *= -1.0
+        rot = np.matmul(u, vt)
+    return rot.astype(np.float32)
+
+
 def motion_feature_bundle_to_template(bundle: dict[str, Any]) -> dict[str, Any]:
     num_frames = int(np.asarray(bundle["motion_vector"]).shape[0])
     motion_items = []
     eye_ratio = np.asarray(bundle["eye_ratio"], dtype=np.float32)
     lip_ratio = np.asarray(bundle["lip_ratio"], dtype=np.float32)
+    rotation = _project_to_rotation(bundle["rotation_matrix"]).reshape(num_frames, 3, 3)
 
     for frame_index in range(num_frames):
         motion_items.append(
             {
                 "scale": np.asarray(bundle["scale"][frame_index : frame_index + 1], dtype=np.float32),
-                "R": np.asarray(bundle["rotation_matrix"][frame_index : frame_index + 1], dtype=np.float32),
+                "R": rotation[frame_index : frame_index + 1],
                 "exp": np.asarray(bundle["expression"][frame_index : frame_index + 1], dtype=np.float32),
                 "t": np.asarray(bundle["translation"][frame_index : frame_index + 1], dtype=np.float32),
                 "kp": np.asarray(bundle["keypoints"][frame_index : frame_index + 1], dtype=np.float32),

@@ -10,6 +10,8 @@ from typing import Any, Sequence
 
 import numpy as np
 
+from avagen.data.windowing import WindowingConfig, plan_temporal_windows
+
 
 @dataclass(frozen=True)
 class ProcessedClipRecord:
@@ -230,6 +232,12 @@ def load_aligned_audio_motion_sequence(
     source_times = np.asarray(audio_bundle["time_axis_sec"], dtype=np.float32)
     motion_values = _flatten_feature_array(np.asarray(motion_bundle[motion_feature_name], dtype=np.float32))
     motion_fps = float(np.asarray(motion_bundle["output_fps"]).item())
+    # LivePortrait stores output_fps as an integer, truncating fractional rates
+    # (e.g. 23.976 -> 23). Using that to place motion frames on the timeline drifts
+    # audio vs motion by seconds over a clip and scrambles the audio->motion labels,
+    # so prefer the clip's true (fractional) fps from the manifest when available.
+    if record.fps and record.fps > 0:
+        motion_fps = float(record.fps)
     target_times = (np.arange(motion_values.shape[0], dtype=np.float32) / max(motion_fps, 1e-8)).astype(np.float32)
 
     aligned_audio_columns = []
@@ -365,3 +373,75 @@ class AudioMotionSequenceDataset:
 
     def identity_ids(self) -> list[str]:
         return sorted({record.identity_id for record in self.records})
+
+
+class WindowedAudioMotionDataset:
+    """Windowed, within-clip temporally-split view over aligned audio-motion data.
+
+    Loads every clip's full aligned sequence once (ignoring the manifest's
+    clip-level ``split`` field) and exposes fixed-length windows drawn from the
+    requested split's temporal region of each clip.
+    """
+
+    def __init__(
+        self,
+        manifest_path: str | Path,
+        split: str,
+        windowing: WindowingConfig,
+        audio_feature_names: Sequence[str] = (
+            "rms_energy",
+            "log_rms_energy",
+            "zero_crossing_rate",
+            "peak_amplitude",
+            "spectral_centroid_hz",
+        ),
+        motion_feature_name: str = "motion_vector",
+        limit: int | None = None,
+    ) -> None:
+        self.manifest_path = Path(manifest_path).expanduser().resolve()
+        self.split = split
+        self.windowing = windowing
+        self.audio_feature_names = tuple(audio_feature_names)
+        self.motion_feature_name = motion_feature_name
+
+        records = [
+            record
+            for record in load_processed_clip_records(self.manifest_path, splits=None, limit=limit)
+            if record.audio_features_path is not None and record.motion_features_path is not None
+        ]
+        self._sequences: list[AudioMotionSequence] = []
+        self._windows: list[tuple[int, int, int]] = []
+        for seq_index, record in enumerate(records):
+            sequence = load_aligned_audio_motion_sequence(
+                record,
+                audio_feature_names=self.audio_feature_names,
+                motion_feature_name=self.motion_feature_name,
+            )
+            self._sequences.append(sequence)
+            n_frames = int(sequence.audio_features.shape[0])
+            for start, end in plan_temporal_windows(n_frames, split, windowing):
+                self._windows.append((seq_index, start, end))
+
+    def __len__(self) -> int:
+        return len(self._windows)
+
+    def __getitem__(self, index: int) -> AudioMotionSequence:
+        seq_index, start, end = self._windows[index]
+        sequence = self._sequences[seq_index]
+        return AudioMotionSequence(
+            clip_id=sequence.clip_id,
+            identity_id=sequence.identity_id,
+            split=self.split,
+            audio_features=sequence.audio_features[start:end],
+            motion_features=sequence.motion_features[start:end],
+            audio_feature_names=sequence.audio_feature_names,
+            motion_feature_name=sequence.motion_feature_name,
+            time_axis_sec=sequence.time_axis_sec[start:end],
+            motion_fps=sequence.motion_fps,
+        )
+
+    def clip_ids(self) -> list[str]:
+        return [self._sequences[seq_index].clip_id for seq_index, _, _ in self._windows]
+
+    def identity_ids(self) -> list[str]:
+        return sorted({sequence.identity_id for sequence in self._sequences})

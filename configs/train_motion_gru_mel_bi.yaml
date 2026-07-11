@@ -1,0 +1,42 @@
+# Mel-spectrogram variant: gives the model phonetic content (not just loudness)
+# so it can predict mouth/expression motion, not just gross energy.
+# Requires audio features re-extracted with log_mel present in audio_features.npz.
+manifest_path: data/processed/hdtf_cmr/manifest.jsonl
+experiment_dir: experiments/exp_006_audio_to_motion_gru_mel_bi
+seed: 7
+dataset:
+  # 40-dim log-mel + loudness/brightness scalars => 42-dim audio input.
+  audio_feature_names:
+    - log_mel
+    - log_rms_energy
+    - spectral_centroid_hz
+  motion_feature_name: motion_vector
+  normalize_motion: true
+  windowing:
+    enabled: true
+    window_size: 100
+    stride: 50
+    train_fraction: 0.8
+    val_fraction: 0.1
+    boundary_gap: 0
+  train_splits:
+    - train
+  val_splits:
+    - val
+model:
+  name: gru
+  hidden_size: 256
+  num_layers: 2
+  dropout: 0.1
+  bidirectional: true
+training:
+  batch_size: 8
+  learning_rate: 0.0001
+  weight_decay: 0.0
+  epochs: 60
+  device: auto
+  precision: fp32
+  grad_clip_norm: 1.0
+  velocity_loss_weight: 0.5
+  num_workers: 0
+  resume_from: null

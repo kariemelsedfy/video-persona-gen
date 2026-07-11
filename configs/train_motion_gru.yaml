@@ -1,12 +1,31 @@
-manifest_path: data/processed/self_001/manifest.jsonl
+# First real training run targets the hdtf_cmr manifest.
+# On Bowdoin, override with the absolute scratch path, e.g.:
+#   --manifest-path /mnt/hpc/tmp/<user>/video-persona-gen/data/processed/hdtf_cmr/manifest.jsonl
+manifest_path: data/processed/hdtf_cmr/manifest.jsonl
 experiment_dir: experiments/exp_004_audio_to_motion_gru
 seed: 7
 dataset:
+  motion_feature_name: motion_vector
+  # Standardize each motion dimension (z-score) so small-scale components
+  # (lip/eye ratios, head pose) are weighted equally in the loss instead of
+  # collapsing to their mean. Stats are stored in the checkpoint and undone at
+  # prediction time.
+  normalize_motion: true
+  # Windowed within-clip temporal split (Option B): every clip is split by time
+  # into train/val/test regions, then sliced into fixed-length frame windows.
+  # This uses all sessions for training and enables real batching.
+  # train_splits/val_splits below are ignored while windowing is enabled.
+  windowing:
+    enabled: true
+    window_size: 100      # frames per window (~4.0s at 25 fps)
+    stride: 50            # 50% overlap between consecutive windows
+    train_fraction: 0.8   # first 80% of each clip (by time) -> train
+    val_fraction: 0.1     # next 10% -> val; remaining ~10% -> test
+    boundary_gap: 0       # frames dropped at the start of val/test to reduce leakage
   train_splits:
     - train
   val_splits:
     - val
-  motion_feature_name: motion_vector
 model:
   name: gru
   hidden_size: 256
@@ -21,6 +40,8 @@ training:
   device: auto
   precision: fp32
   grad_clip_norm: 1.0
-  velocity_loss_weight: 0.1
+  # Raised from 0.1: with standardized targets, weighting frame-to-frame motion
+  # more strongly discourages the model from predicting a near-static sequence.
+  velocity_loss_weight: 0.5
   num_workers: 0
   resume_from: null

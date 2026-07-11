@@ -1,0 +1,7 @@
+# Prediction config for the flow-matching model, rendered RAW (no post-process):
+# flow samples the full motion distribution, so head movement, mouth, and even
+# blinks are generated natively. Used as --model-config-path for the render.
+dataset:
+  audio_feature_names:
+    - wav2vec
+  motion_feature_name: motion_vector

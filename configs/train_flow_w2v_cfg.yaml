@@ -1,0 +1,33 @@
+# Conditional flow-matching motion generator (frontier: FLOAT/Ditto-style
+# motion-space flow matching). Generates LivePortrait motion coefficients from
+# wav2vec2 audio by sampling an ODE from noise -> diverse, full-amplitude motion
+# (fixes MSE mean-collapse). Drop-in for predict/render (checkpoint model_type=flow).
+manifest_path: data/processed/huberman/manifest.jsonl
+experiment_dir: experiments/exp_flow_w2v_cfg
+seed: 7
+dataset:
+  audio_feature_names:
+    - wav2vec
+  motion_feature_name: motion_vector
+  windowing:
+    enabled: true
+    window_size: 100
+    stride: 50
+    train_fraction: 0.8
+    val_fraction: 0.1
+    boundary_gap: 0
+model:
+  hidden_size: 512
+  num_layers: 3
+  time_embed_dim: 128
+  dropout: 0.1
+  bidirectional: true
+training:
+  batch_size: 16
+  learning_rate: 0.0002
+  weight_decay: 0.0
+  epochs: 300
+  device: auto
+  grad_clip_norm: 1.0
+  flow_sample_steps: 20
+  cfg_p_uncond: 0.15

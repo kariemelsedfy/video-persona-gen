@@ -30,6 +30,7 @@ class MotionTemplateExtractionConfig:
     work_root: Path | None = None
     output_field: str = "motion_template_path"
     driving_source: str = "source_video"
+    skip_render: bool = True
     extra_args: Sequence[str] = field(default_factory=tuple)
     clip_ids: tuple[str, ...] = ()
     overwrite: bool = False
@@ -118,6 +119,10 @@ def _build_face_crop_video(
         f"{fps:.6f}",
         "-i",
         str(input_pattern),
+        # libx264 + yuv420p requires even dimensions; face crops can be odd
+        # (e.g. 323x323), so crop down to the nearest even size.
+        "-vf",
+        "crop=trunc(iw/2)*2:trunc(ih/2)*2",
         "-c:v",
         "libx264",
         "-pix_fmt",
@@ -191,6 +196,7 @@ def _extract_single_motion_template(
             inference_script=config.inference_script,
             python_executable=config.python_executable,
             extra_args=config.extra_args,
+            stop_when_file=generated_template if config.skip_render else None,
         ),
         dry_run=dry_run,
     )

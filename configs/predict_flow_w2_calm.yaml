@@ -1,0 +1,11 @@
+# Flow+CFG render (Huberman, 16-clip model): guided lip-sync (w=2.0) + light calm.
+# w=2.0 gives offset-0 audio alignment with strong sync (0.54) and less
+# over-articulation than w=3; mild scales trim the head over-shoot.
+dataset:
+  audio_feature_names:
+    - wav2vec
+  motion_feature_name: motion_vector
+motion_postprocess:
+  guidance_weight: 2.0     # classifier-free guidance: tighter lip-sync
+  motion_scale: 0.9        # gentle global calm
+  translation_scale: 0.4   # clamp head-translation over-shoot

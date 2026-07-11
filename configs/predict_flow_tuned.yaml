@@ -1,0 +1,8 @@
+# Flow prediction (Huberman): calm the over-the-top motion + clamp head-translation.
+dataset:
+  audio_feature_names:
+    - wav2vec
+  motion_feature_name: motion_vector
+motion_postprocess:
+  motion_scale: 0.65      # global calm: tame over-the-top generated motion
+  translation_scale: 0.35 # extra clamp on head translation over-shoot

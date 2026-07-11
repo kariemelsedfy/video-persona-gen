@@ -1,0 +1,313 @@
+# Project Progress
+
+This is the current working-state tracker. Update it whenever repository state or next actions change.
+
+## Status
+
+- Date: July 6, 2026
+- Phase: first real (non-smoke) `hdtf_cmr` manifest merged (PR #21); first real training run done and iterated into a forward-facing, visibly-talking avatar (PR #22, open)
+- Branches: `feat/hdtf-manifest-prep-run` (merged, PR #21); `feat/windowed-temporal-split` (open, PR #22 — windowing + normalization + mel + skip-render + auto-mux)
+- Best demo: `outputs/bowdoin_predicted_render/job-63931/renders/hdtf_cmr/hdtf_cmr_session2_002/session2_MEL_predicted_with_audio.mp4` and `comparison_gt_vs_baseline_vs_mel.png`
+- Overall state: `main` contains the merged Bowdoin manifest workflow. The manifest run (PR #21): job `63805` OOM'd during LivePortrait's discarded render loop on the long clip; `session1`'s template (written before the render) was salvaged; finish job `63816` completed the manifest. Then PR #22 built the model-quality arc:
+  - Windowed within-clip temporal split (all clips → ~482 train windows, real batching). First windowed train `63914`.
+  - Diagnosed a frozen/sideways-grinning render: unnormalized MSE collapses small motion dims (lip/eye var-ratio ~0.09/0.07); predicted rotations invalid (det ~1.03).
+  - Fixes: motion-target normalization (`dataset.normalize_motion`), SVD rotation orthonormalization, velocity weight 0.1→0.5 (retrain `63924`) — pose fixed but lips still frozen (5 loudness scalars lack phonetic content).
+  - Log-mel spectrogram audio features + mel config (retrain `63929`): lip var-ratio 0.09→0.20, expression 0.55→0.65, render `63931` forward-facing and talking.
+  - Auto-mux driving audio into renders (+ fps fix); skip-render during motion extraction (Popen + stop-on-template) so long clips no longer OOM.
+  - Running: `63932` bidirectional-mel experiment (offline avatar can use future audio context).
+  - Remaining ceiling: mouth ~20% of real amplitude; eyes/blinks flat (not audio-predictable). Next lever: pretrained audio encoder (wav2vec2/HuBERT).
+
+## Completed
+
+- Added the top-level repository skeleton for configs, scripts, Slurm, source package modules, experiments, and docs.
+- Added documentation scaffolding for ethics, benchmarks, dataset/model cards, and experiments.
+- Added placeholder CLI entrypoints and package modules rather than implementing the real pipeline yet.
+- Added shared session coordination files for multi-chat and multi-agent handoff.
+- Replaced the LivePortrait wrapper stub with real command-building and subprocess execution against an external official checkout.
+- Added a smoke-style wrapper test and updated docs/config to expect `external/LivePortrait`.
+- Reviewed the Bowdoin HPC access, web portal, hardware, and GPU docs and documented the preferred remote workflow for future sessions.
+- Added a shared instruction to play a local completion sound at the end of finished tasks.
+- Added a local ignored `.env.hpc.local` file and attempted the first real SSH login to Bowdoin HPC using `expect`.
+- Corrected the Bowdoin password, verified successful SSH access to `moosehead`, and created a reusable local Codex skill for Bowdoin HPC SSH.
+- Staged the remote Bowdoin code workspace by cloning this repo to `/home/kelsedfy/video-persona-gen` and upstream LivePortrait to `/home/kelsedfy/video-persona-gen/external/LivePortrait`.
+- Submitted and debugged multiple Bowdoin Slurm jobs for LivePortrait environment setup and Hugging Face weight download.
+- Reconnected through the Bowdoin VPN, recovered the previously missing Hugging Face and Slurm stderr, and confirmed the upstream `readme.md` download command is wrong for the current CLI because it only downloads `README.md` and `docs`.
+- Confirmed Bowdoin home storage is already at the hard limit (`20 GiB` soft quota, `25 GiB` hard limit / `25600M` used), which causes direct `hf download` runs into the home workspace to fail and can also crash inference when Rich flushes to a home-backed Slurm log.
+- Completed the first real upstream LivePortrait GPU run on Bowdoin by staging the checkout, weights, logs, and outputs entirely under node-local `/tmp` inside a Slurm job.
+- Added a tracked Bowdoin helper job at `slurm/liveportrait_infer_tmp.sbatch` that captures the working node-local `/tmp` inference recipe and supports optional output persistence through `PERSIST_OUTPUT_DIR`.
+- Added repo-local Bowdoin automation scripts that can submit a remote LivePortrait job, wait for a success status, download the output MP4s and logs back into the local repo, and then release the remote hold.
+- Verified that `/mnt/hpc/tmp/kelsedfy` is writable, currently almost empty, and backed by a filesystem with about `32T` free, then updated the Bowdoin job scripts to use `/mnt/hpc/tmp/kelsedfy/video-persona-gen` as the durable storage root.
+- Replaced the preprocessing stubs with a minimal real pipeline built on `ffprobe`, `ffmpeg`, and OpenCV: clip inspection, audio extraction, frame sampling, Haar-cascade face crops with center-crop fallback, metadata emission, and identity-level manifest/report generation.
+- Added a pure-Python manifest smoke test at `tests/test_manifest_generation.py`.
+- Synced the preprocessing code to the Bowdoin repo and ran a real Slurm smoke test on the `main` partition against a synthetic audio-backed version of `external/LivePortrait/assets/examples/driving/d0.mp4`.
+- Verified the updated persistent-storage LivePortrait round-trip flow with two Bowdoin jobs: the first populated `/mnt/hpc/tmp/kelsedfy/video-persona-gen/liveportrait_weights`, and the second explicitly reused those persisted weights instead of redownloading them.
+- Implemented a real motion-template extraction path that stages a working driving video, invokes upstream LivePortrait to generate its native `.pkl` template, copies that template into the processed clip directory, updates `metadata.json`, and refreshes `manifest.jsonl`.
+- Added `scripts/extract_motion.py`, replaced the placeholder `slurm/extract_motion.sbatch`, and added a unit-style smoke test for metadata/manifest refresh at `tests/test_motion_template_extraction.py`.
+- Implemented manifest-backed dataset loading utilities in `src/avagen/data/dataset.py`, including record loading, clip metadata loading, frame metadata loading, and motion-template loading.
+- Implemented split utilities in `src/avagen/data/splits.py` and added `scripts/create_splits.py` to assign train/val/test splits back into clip metadata and regenerate the manifest/report.
+- Added dataset and split smoke tests at `tests/test_dataset_loading.py` and `tests/test_split_assignment.py`.
+- Implemented WAV loading and framewise audio feature extraction in `src/avagen/data/audio.py`, `src/avagen/features/audio_features.py`, and `src/avagen/features/prosody.py`.
+- Added `scripts/extract_audio_features.py` plus `configs/extract_audio_features.yaml` to write `audio_features.npz` and `prosody_summary.json` back into each clip directory and refresh the manifest with their paths.
+- Added `tests/test_audio_feature_extraction.py`.
+- Implemented numeric motion feature extraction in `src/avagen/features/motion_features.py`.
+- Added `scripts/extract_motion_features.py` plus `configs/extract_motion_features.yaml` to flatten `motion_template.pkl` into `motion_features.npz`, emit `motion_summary.json`, and refresh the manifest with their paths.
+- Added `tests/test_motion_feature_extraction.py`.
+- Added an aligned sequence dataset layer in `src/avagen/data/dataset.py` plus `scripts/inspect_sequence_dataset.py`, so downstream code can interpolate audio features onto motion-frame timestamps and batch variable-length sequences.
+- Added `tests/test_aligned_sequence_dataset.py`.
+- Replaced the GRU training stubs with a first real baseline implementation in `src/avagen/models/motion_gru.py` and `src/avagen/training/train_motion.py`, including masked reconstruction and velocity losses, checkpoint save/load helpers, JSONL logging, `scripts/train_motion.py`, and a Bowdoin-safe `slurm/train_motion.sbatch`.
+- Added `tests/test_motion_training.py` and updated `configs/train_motion_gru.yaml` plus `pyproject.toml` for the optional training dependency path.
+- Added checkpoint-driven motion prediction utilities in `src/avagen/inference/generate_motion.py` plus `scripts/predict_motion.py`, and added motion-vector reconstruction helpers in `src/avagen/features/motion_features.py` so predicted motion can be saved as both `predicted_motion_features.npz` and `predicted_motion_template.pkl`.
+- Added `tests/test_motion_prediction.py`.
+- Implemented motion evaluation metrics in `src/avagen/evaluation/motion_metrics.py`, added `scripts/evaluate_motion.py`, `configs/evaluate_motion.yaml`, and a Bowdoin-safe `slurm/evaluate.sbatch`, and added `tests/test_motion_evaluation.py`.
+- Implemented a predicted-template render bridge on the current branch through `src/avagen/renderers/video_renderer.py`, `scripts/render_predicted_motion.py`, `configs/render_predicted_motion.yaml`, and `slurm/render_predicted_motion.sbatch`, plus `tests/test_predicted_motion_rendering.py`.
+- Added Bowdoin predicted-render round-trip wrappers at `scripts/run_bowdoin_predicted_render_roundtrip.sh` and `scripts/fetch_bowdoin_predicted_render_output.sh` so persisted render outputs can be fetched into the local repo after Slurm completion.
+- Added `slurm/prepare_dataset_manifest.sbatch` so Bowdoin can prepare one processed identity manifest for training in a single tracked job.
+- Added `scripts/upload_to_bowdoin.sh`, `scripts/run_bowdoin_preprocess_roundtrip.sh`, and `scripts/fetch_bowdoin_preprocess_output.sh` so a local raw identity directory can be uploaded to Bowdoin scratch, preprocessed under Slurm from a fresh scratch clone, and fetched back as a small local inspection bundle.
+- Updated `slurm/preprocess.sbatch` to use the CPU `main` partition by default and run the tracked Bowdoin env explicitly through `PYTHON_BIN` instead of an implicit `python`.
+- Added `scripts/run_bowdoin_prepare_manifest_roundtrip.sh` so a processed identity manifest can be prepared from a fresh Bowdoin scratch clone while explicitly pointing at the remote upstream LivePortrait checkout that is not present in ignored `external/` paths.
+- Increased the default memory request for `slurm/prepare_dataset_manifest.sbatch` and its round-trip wrapper to `64G` after the first real `hdtf_cmr` manifest-preparation attempt hit Slurm `OUT_OF_MEMORY` at `32G`.
+- Added per-clip progress logging to `src/avagen/renderers/motion_template.py` so long LivePortrait extraction jobs emit `starting`, `completed`, and `skipped_existing` markers into the Slurm log instead of looking silent for hours.
+- Added a new `driving_source` option to motion-template extraction, updated `scripts/extract_motion.py` to accept it, set `configs/extract_motion.yaml` to use `face_crop_video`, and added `tests/test_motion_template_face_crop_video.py`.
+- Updated motion-template extraction to synthesize a driving MP4 from preprocessed `face_crops/*.png` via `ffmpeg`, so LivePortrait can operate on cropped low-resolution face videos instead of the larger raw source clips.
+- Updated motion-template extraction to delete stale staged `.pkl` files in the work directory before reruns, so an old intermediate template cannot be mistaken for a newly generated one.
+- Selected the first real (non-self-recorded) identity for pipeline validation: `hdtf_cmr` (Cathy McMorris Rodgers, from the HDTF "WRA" subset). Selection was data-driven, not a guess: pulled `WRA_annotion_time.txt`/`WRA_resolution.txt`/`WRA_video_url.txt` directly from `github.com/MRzzm/HDTF` (this repo had no HDTF metadata cached anywhere) and computed per-identity total annotated duration and session count. She has the most total speaking time among multi-session HDTF identities (1248.04s / 20.8 min across 3 distinct sessions), all three videos are from her own official congressional channel (checked via YouTube oEmbed titles/channel names, not just filenames). The runner-up by raw numbers, Roger Wicker (14.3 min, uniform 720p metadata), was rejected after the same oEmbed check showed his 3 clips come from three unrelated production contexts (a symposium, a memorial service, a third-party outlet), so the resolution match was coincidental, not a real consistent-setup signal.
+- Downloaded and trimmed the 3 source videos with `yt-dlp` + `ffmpeg` (both installed locally via Homebrew) directly to the HDTF annotation windows, keeping session1's three contiguous HDTF sub-intervals merged into one continuous clip (00:05-15:00) instead of 3 separate files, so each output clip maps 1:1 to one distinct recording session (matters for `create_splits.py`, which splits by `clip_id` with no session-grouping awareness). Raw output: `data/raw/hdtf_cmr/hdtf_cmr_session{0,1,2}.mp4` (243.02s, 895.0s, 110.03s — gitignored, not committed).
+- Updated `configs/preprocess_hdtf.yaml` with `identity_id: hdtf_cmr`, the 3 input paths, and a comment block recording the source YouTube URLs/trim windows for provenance (this file is documentation only — no script currently reads it; `scripts/preprocess_dataset.py` was invoked directly with matching flags).
+- Ran `scripts/preprocess_dataset.py --identity-id hdtf_cmr` locally (CPU-only: ffmpeg audio extraction + OpenCV Haar-cascade face crops, no LivePortrait/GPU/Bowdoin involved). Output: `data/processed/hdtf_cmr/` with 3 clip dirs (`hdtf_cmr_session0_000`, `_session1_001`, `_session2_002`), face-detection rates of 99.79%/99.96%/99.96%, `manifest.jsonl` (3 records), and `dataset_report.json` (`total_duration_sec: 1248.04`, `total_frames: 30193`, `splits: {train: 3}` — all 3 clips are currently labeled `train` only because that's `preprocess_dataset.py`'s single-pass default; real train/val/test assignment still needs `scripts/create_splits.py`, not run yet).
+- Set up a local `.venv` per the README quick start and hit a real environment bug: `opencv-python` just shipped `5.0.0`, which removed `cv2.CascadeClassifier` and broke `src/avagen/data/face_tracking.py` (`AttributeError: module 'cv2' has no attribute 'CascadeClassifier'`). Fixed by pinning `opencv-python>=4.8,<5` in `requirements.txt` (confirmed `4.11.0.86` works). This will bite any fresh `pip install -r requirements.txt` (including on Bowdoin) done before this pin lands there.
+
+## Current Reality
+
+- `scripts/run_liveportrait_inference.py` and `src/avagen/renderers/liveportrait_wrapper.py` now implement a real external-checkout wrapper path.
+- `scripts/inspect_video.py`, `scripts/preprocess_dataset.py`, and `scripts/create_manifest.py` now call real package code instead of returning skeleton JSON.
+- The preprocessing path now writes `audio.wav`, `face_crops/`, `frame_metadata.json`, `metadata.json`, `manifest.jsonl`, and `dataset_report.json`.
+- Face tracking is still a minimal OpenCV Haar-cascade baseline with fallback cropping; landmarks, head pose, expressions, and motion templates are still unimplemented.
+- Face tracking is still a minimal OpenCV Haar-cascade baseline with fallback cropping, and landmarks/head pose/expressions are still unimplemented.
+- Motion templates are now implemented through upstream LivePortrait and stored per clip as `motion_template.pkl`.
+- Dataset consumption is now no longer stubbed for the manifest layer: processed clip records can be loaded and filtered by split, and clip-level split assignments can be rewritten deterministically.
+- Audio features are now no longer stubbed for the processed-clip layer: each clip can produce framewise RMS, log-RMS, zero-crossing, peak-amplitude, and spectral-centroid features plus a summarized prosody JSON.
+- Motion features are now no longer stubbed for the processed-clip layer: each clip can flatten LivePortrait motion templates into a stable `motion_vector` plus component arrays for scale, rotation, expression, translation, keypoints, eye ratio, and lip ratio.
+- `main` now also contains an aligned `AudioMotionSequenceDataset`, a first GRU trainer with experiment outputs under `experiment_dir`, a motion-prediction path that reconstructs `predicted_motion_template.pkl` from checkpoint outputs, and a motion-evaluation path that scores predicted motion bundles against ground truth.
+- `main` now also contains the predicted-template render bridge, so a checkpoint and processed manifest can produce actual rendered MP4 outputs through upstream LivePortrait.
+- `main` now also contains a predicted-render round-trip workflow that downloads Bowdoin render outputs into `outputs/bowdoin_predicted_render/job-<jobid>/`.
+- The new training and evaluation Slurm templates now write logs under `/mnt/hpc/tmp/%u/video-persona-gen/` instead of the quota-limited Bowdoin home workspace.
+- The current branch now adds a verified Bowdoin manifest-preparation job that runs `extract_motion.py`, `create_splits.py`, `extract_audio_features.py`, and `extract_motion_features.py` in one `gpu:pro6000:1` Slurm allocation.
+- This shell currently does not have `ffmpeg`, `huggingface-cli`, `git-lfs`, or `pytest`, so full upstream LivePortrait validation and normal pytest execution were not completed here.
+- This shell also does not have `numpy`, `torch`, or `yaml`, so the new aligned-sequence, training, prediction, and evaluation paths were syntax-checked locally with `python3 -m compileall`, and their real runtime verification was performed on Bowdoin instead.
+- Bowdoin now has a confirmed durable layout for this project:
+  - weights: `/mnt/hpc/tmp/kelsedfy/video-persona-gen/liveportrait_weights`
+  - fetched inference runs: `/mnt/hpc/tmp/kelsedfy/video-persona-gen/liveportrait_runs/<jobid>/`
+  - processed data: `/mnt/hpc/tmp/kelsedfy/video-persona-gen/data/processed/`
+- There is an untracked local `LivePortrait/` directory in the working tree; treat it as local-only unless it is intentionally moved under the repo's expected `external/LivePortrait` path.
+- The preferred heavy-run target is Bowdoin HPC via `moosehead.bowdoin.edu`; off-campus access requires VPN and long jobs should use Slurm on `-p gpu` with explicit `--gres`, preferably `gpu:pro6000:1` when available.
+- A local ignored Bowdoin password file now exists, and this machine has `expect`, so password-driven SSH automation is technically possible here.
+- Password-driven SSH to `moosehead.bowdoin.edu` now works from this machine using `.env.hpc.local` and `expect`.
+- A reusable local skill now exists at `~/.codex/skills/bowdoin-hpc-ssh`, with a tested script at `scripts/run_bowdoin_hpc_command.sh`.
+- The remote Bowdoin code workspace now exists at `/home/kelsedfy/video-persona-gen`.
+- The upstream renderer checkout now exists at `/home/kelsedfy/video-persona-gen/external/LivePortrait`.
+- `moosehead` is only for shell and Slurm orchestration; invoking `python3` there prints a warning to use Slurm or an interactive machine instead.
+- Bowdoin exposes `/usr/bin/ffmpeg` and modules including `miniconda3`, `python3.11`, `python3.11.8`, `cuda-12.8.1`, `cuda-12.9.1`, and `cuda-13.1`.
+- A remote conda environment now exists at `/home/kelsedfy/video-persona-gen/.conda/liveportrait`.
+- On Bowdoin `pro6000` nodes, `nvidia-smi` reports `NVIDIA RTX PRO 6000 Blackwell Server Edition` with driver `610.43.02`, and `nvcc -V` under `cuda-12.8.1` reports CUDA `12.8`.
+- The remote environment now has:
+  - `torch==2.11.0+cu128`
+  - `torchvision==0.26.0+cu128`
+  - `torchaudio==2.11.0+cu128`
+  - `transformers==4.38.0`
+  - `onnxruntime-gpu==1.18.0`
+  - `huggingface_hub==0.36.2`
+- The initial setup job failed only at the deprecated `huggingface-cli download` step.
+- A follow-up repair job restored `huggingface_hub==0.36.2` and `pip check` passed.
+- The working weights command is `hf download KlingTeam/LivePortrait --local-dir ...`; the upstream `huggingface-cli download ... "README.md" "docs"` form only fetched those paths on the current CLI.
+- Direct home-side weight downloads still fail because the Bowdoin account is already at its hard storage limit.
+- The home-side `external/LivePortrait/pretrained_weights` tree is only a partial artifact with docs and incomplete cache files; it is not a usable weight directory.
+- A home-backed Slurm log can also fail mid-inference with `OSError: [Errno 122] Disk quota exceeded`, even after the node-local model download succeeds.
+- A node-local `/tmp` Slurm flow now works around both issues and completed a full upstream inference job on `moose63` with `--gres=gpu:rtx3080:1`.
+- `/mnt/hpc/tmp/kelsedfy` is writable and large enough to serve as the durable scratch root for this project, and the tracked Bowdoin scripts now default to `/mnt/hpc/tmp/<user>/video-persona-gen`.
+- `onnxruntime-gpu` emitted CUDA-provider load errors on the `rtx3080` run because `libcublasLt.so.11` was missing, but the overall job still completed successfully.
+- The verified round-trip scripts are:
+  - `scripts/run_bowdoin_hpc_command.sh`
+  - `scripts/fetch_bowdoin_liveportrait_output.sh`
+  - `scripts/run_bowdoin_liveportrait_roundtrip.sh`
+- The verified local sample output path is `outputs/bowdoin_liveportrait/verified-sample/output/`, containing `s0--d0.mp4` and `s0--d0_concat.mp4`.
+
+## Verification
+
+- `python3 -m compileall scripts src/avagen tests`
+- Ran a direct smoke test of `run_liveportrait_inference()` against a temporary fake external `inference.py`; it completed and wrote the expected output marker file.
+- Fetched and inspected the Bowdoin HPC knowledge-base articles covering SSH access, the Open OnDemand portal, and GPU resource requests.
+- Verified that `.env.hpc.local` contains non-empty username and password fields without obvious quoting or whitespace issues.
+- Attempted SSH login to `moosehead.bowdoin.edu` using `expect`; the host was reachable but password authentication failed.
+- Retried SSH after correcting the password; login succeeded, `hostname` returned `moosehead`, and `sbatch` was available.
+- Forward-tested `~/.codex/skills/bowdoin-hpc-ssh/scripts/run_bowdoin_hpc_command.sh` successfully against `moosehead`.
+- Confirmed GitHub access from Bowdoin HPC for both `kariemelsedfy/video-persona-gen` and `KlingAIResearch/LivePortrait`.
+- Cloned both repositories on Bowdoin HPC and verified the checked-out HEADs:
+  - project repo: `1943167` on `main`
+  - LivePortrait repo: `9b294b3` on `main`
+- Confirmed `/usr/bin/ffmpeg` exists on Bowdoin HPC and that module listings include `miniconda3` and multiple CUDA versions.
+- Ran a short `pro6000` GPU probe job and confirmed the target GPU/driver/CUDA combination:
+  - GPU: `NVIDIA RTX PRO 6000 Blackwell Server Edition`
+  - Driver: `610.43.02`
+  - CUDA toolkit: `12.8`
+- Confirmed from the official PyTorch site on July 3, 2026 that stable Linux pip installs support CUDA `12.8`, and used a `cu128` PyTorch install path as an inference from that official selector.
+- Ran a main-partition setup job that successfully created the remote conda env and installed the LivePortrait Python dependencies before failing at `huggingface-cli download`.
+- Ran a repair job that verified `hf` exists in the env at `/home/kelsedfy/video-persona-gen/.conda/liveportrait/bin/hf`.
+- Confirmed from the upstream remote `readme.md` that the published weights command still appends `README.md` and `docs` as positional paths after `huggingface-cli download`.
+- Captured `outputs/logs/liveportrait_weights_fix_63741.out`, which showed the corrected `hf download` path working until it hit `OSError: [Errno 122] Disk quota exceeded`.
+- Ran `quota -s` on Bowdoin and confirmed the account is already at the hard limit (`25600M` used, `20480M` quota, `25600M` limit).
+- Inspected `sinfo -p gpu -o '%N %G %t'` and used the idle `rtx3080` capacity for the first successful inference run.
+- Verified that job `63744` reached real inference and failed only because Rich flushed to a home-backed Slurm log after reporting `The animated video consists of 78 frames`.
+- Verified that job `63745` completed with exit code `0` after running the Hugging Face download and `python inference.py -s assets/examples/source/s0.jpg -d assets/examples/driving/d0.mp4` entirely under node-local `/tmp`.
+- Verified the full submit-and-download workflow with job `63748`: the remote job completed successfully, the local fetch script pulled the output MP4s and logs into `outputs/bowdoin_liveportrait/verified-sample/`, and the final local artifacts were:
+  - `outputs/bowdoin_liveportrait/verified-sample/output/s0--d0.mp4`
+  - `outputs/bowdoin_liveportrait/verified-sample/output/s0--d0_concat.mp4`
+- Verified on Bowdoin that `/mnt/hpc/tmp/kelsedfy` is writable, has mode `drwxrwxr-x`, and sits on `gluster1.bowdoin.edu:/gv0` with roughly `32T` free.
+- Verified local shell syntax with `bash -n` for the updated Bowdoin scripts and `slurm` templates.
+- Verified Python compilation with `python3 -m compileall scripts src/avagen tests`.
+- Ran a local manifest smoke test against synthetic metadata using `PYTHONPATH=src python3 scripts/create_manifest.py --identity-id demo_id --processed-root <tmpdir>/data/processed`.
+- Ran Bowdoin Slurm job `63750` on the `main` partition, which:
+  - generated `/mnt/hpc/tmp/kelsedfy/video-persona-gen/smoke/preprocess/d0_with_tone.mp4` by adding a synthetic sine-wave audio track to the LivePortrait driving sample
+  - confirmed `scripts/inspect_video.py` saw `has_audio=true`, `fps=25.0`, and `num_frames=78`
+  - confirmed `scripts/preprocess_dataset.py` produced `78` face crops with `face_detection_rate=1.0`
+  - wrote processed outputs under `/mnt/hpc/tmp/kelsedfy/video-persona-gen/data/processed/smoke_preprocess/`
+- Ran Bowdoin jobs `63751` and `63752` through `scripts/run_bowdoin_liveportrait_roundtrip.sh`:
+  - `63751` completed successfully and populated `/mnt/hpc/tmp/kelsedfy/video-persona-gen/liveportrait_weights`
+  - `63752` completed successfully and `outputs/bowdoin_liveportrait/persistent-storage-smoke-2/logs/hf.log` showed `Reusing persisted weights at /mnt/hpc/tmp/kelsedfy/video-persona-gen/liveportrait_weights`
+  - `63752` status recorded `persist_output_dir=/mnt/hpc/tmp/kelsedfy/video-persona-gen/liveportrait_runs/63752`
+  - local fetched output sizes for `63752` were about `107209` bytes for `s0--d0.mp4` and `308910` bytes for `s0--d0_concat.mp4`
+- Ran Bowdoin GPU job `63754` through `slurm/extract_motion.sbatch` against `/mnt/hpc/tmp/kelsedfy/video-persona-gen/data/processed/smoke_preprocess/manifest.jsonl`:
+  - the extraction command completed successfully for clip `d0_tone`
+  - the generated template landed at `/mnt/hpc/tmp/kelsedfy/video-persona-gen/data/processed/smoke_preprocess/d0_tone/motion_template.pkl`
+  - the template file size was `86025` bytes
+  - both `metadata.json` and `manifest.jsonl` now include the `motion_template_path`
+- Ran a local dataset/split smoke test against a synthetic two-clip manifest:
+  - `ProcessedClipDataset` loaded both clips with `require_motion_template=True`
+  - `assign_clip_splits(..., seed=1)` produced one `train` clip and one `test` clip for the two-clip case
+  - `apply_split_assignments(...)` rewrote the clip `metadata.json` files and refreshed `manifest.jsonl` plus `dataset_report.json`
+- Ran Bowdoin `main`-partition job `63756` for `scripts/extract_audio_features.py` against `/mnt/hpc/tmp/kelsedfy/video-persona-gen/data/processed/smoke_preprocess/manifest.jsonl`:
+  - generated `/mnt/hpc/tmp/kelsedfy/video-persona-gen/data/processed/smoke_preprocess/d0_tone/audio_features.npz` at `10358` bytes
+  - generated `/mnt/hpc/tmp/kelsedfy/video-persona-gen/data/processed/smoke_preprocess/d0_tone/prosody_summary.json` at `285` bytes
+  - extracted `311` feature frames for clip `d0_tone`
+  - refreshed both `metadata.json` and `manifest.jsonl` with `audio_features_path` and `prosody_summary_path`
+- Ran Bowdoin `main`-partition job `63759` for `scripts/extract_motion_features.py` against `/mnt/hpc/tmp/kelsedfy/video-persona-gen/data/processed/smoke_preprocess/manifest.jsonl`:
+  - generated `/mnt/hpc/tmp/kelsedfy/video-persona-gen/data/processed/smoke_preprocess/d0_tone/motion_features.npz` at `130480` bytes
+  - generated `/mnt/hpc/tmp/kelsedfy/video-persona-gen/data/processed/smoke_preprocess/d0_tone/motion_summary.json` at `228` bytes
+  - flattened the sample clip into a motion feature vector dimension of `205`
+  - refreshed both `metadata.json` and `manifest.jsonl` with `motion_features_path` and `motion_summary_path`
+- Ran `bash scripts/run_bowdoin_preprocess_roundtrip.sh --identity-id hdtf_cmr --local-raw-dir data/raw/hdtf_cmr --overwrite`, which:
+  - uploaded the 3 local raw clips to `/mnt/hpc/tmp/kelsedfy/video-persona-gen/data/raw/hdtf_cmr`
+  - cloned the branch into `/mnt/hpc/tmp/kelsedfy/video-persona-gen/verifications/preprocess-20260705-143727-10839/repo`
+  - submitted Bowdoin job `63795`
+  - completed successfully and left the processed identity at `/mnt/hpc/tmp/kelsedfy/video-persona-gen/data/processed/hdtf_cmr`
+  - fetched a local inspection bundle into `outputs/bowdoin_preprocess/job-63795/`
+- Verified from the fetched Bowdoin inspection bundle for job `63795` that:
+  - `dataset_report.json` reports `identity_id: hdtf_cmr`, `num_clips: 3`, `total_duration_sec: 1248.04265`, `total_frames: 30193`, and `splits: {train: 3}`
+  - `manifest.jsonl` contains the expected clip ids `hdtf_cmr_session0_000`, `hdtf_cmr_session1_001`, and `hdtf_cmr_session2_002`
+  - the Bowdoin face-detection rates match the local preprocess run at about `99.74%`, `99.96%`, and `99.96%`
+  - local inspection PNGs plus `metadata.json` for all 3 clips were downloaded under `outputs/bowdoin_preprocess/job-63795/clip_summaries/`
+- Ran a first fresh-clone submission for `slurm/prepare_dataset_manifest.sbatch` against `/mnt/hpc/tmp/kelsedfy/video-persona-gen/data/processed/hdtf_cmr/manifest.jsonl` as Bowdoin job `63799`; it failed immediately because the fresh scratch clone did not contain the ignored `external/LivePortrait` checkout, which the job script defaults to under `$REPO_ROOT/external/LivePortrait`.
+- Added `scripts/run_bowdoin_prepare_manifest_roundtrip.sh` and ran it against the same real manifest with overwrite flags, which submitted Bowdoin job `63800` and fixed the missing-`LIVEPORTRAIT_ROOT` problem by explicitly passing `/home/kelsedfy/video-persona-gen/external/LivePortrait`.
+- Verified from the fetched local inspection bundle for job `63800` that the corrected round-trip fetched successfully into `outputs/bowdoin_prepare_manifest/job-63800/`, but the Bowdoin job state was `OUT_OF_MEMORY` before any metadata or manifest fields changed. The fetched bundle still showed all `motion_template_path`, `audio_features_path`, `prosody_summary_path`, `motion_features_path`, and `motion_summary_path` fields as `null`, which means the failure happened before the first artifact writeback completed. The next retry should use the raised `64G` default or higher.
+- Submitted Bowdoin job `63801` through the first high-memory retry path (`96G`) while still driving LivePortrait from raw source videos. That run proved the memory fix: it stayed healthy around `47 GB` RSS and eventually produced a copied-back `motion_template.pkl` for `hdtf_cmr_session0_000`, but it was still too slow to be the preferred path for real multi-minute footage.
+- Canceled Bowdoin job `63801` after confirming the raw-video path was operational but throughput-limited, then pushed the face-crop driving change to this branch and relaunched the real retry as Bowdoin job `63805`.
+- Rechecked Bowdoin job `63805` during the long face-crop retry:
+  - `squeue` still reports `RUNNING` on `moose68` at `1:14:45` elapsed
+  - `sstat -j 63805.batch` reported `MaxRSS=41011660K` and `MaxVMSize=40882064K`
+  - `/mnt/hpc/tmp/kelsedfy/video-persona-gen/data/processed/hdtf_cmr/slurm-63805.out` now shows:
+  - `[extract_motion] clip_id=hdtf_cmr_session0_000 status=completed template_path=/mnt/hpc/tmp/kelsedfy/video-persona-gen/data/processed/hdtf_cmr/hdtf_cmr_session0_000/motion_template.pkl`
+  - `[extract_motion] clip_id=hdtf_cmr_session1_001 status=starting index=2/3`
+  - `find` on the processed identity currently shows one completed template on disk:
+  - `/mnt/hpc/tmp/kelsedfy/video-persona-gen/data/processed/hdtf_cmr/hdtf_cmr_session0_000/motion_template.pkl`
+
+## Next Recommended Step
+
+- The `hdtf_cmr` manifest preparation is DONE and verified (see below); the local-to-remote bridge and the manifest pipeline are no longer blockers.
+- Immediate: merge `feat/hdtf-manifest-prep-run` (manifest/face-crop work), then start the first real training run.
+- First real training run on the completed `hdtf_cmr` manifest:
+- `train_motion.py` (Bowdoin `slurm/train_motion.sbatch`) against `/mnt/hpc/tmp/kelsedfy/video-persona-gen/data/processed/hdtf_cmr/manifest.jsonl` — this is the first non-smoke train/val/test experiment (splits are `train=session0`, `val=session2`, `test=session1`).
+- then `predict_motion.py` -> `evaluate_motion.py` -> `run_bowdoin_predicted_render_roundtrip.sh` per the existing recipe.
+- Follow-up PR (separate from the manifest merge): add a skip-render path to motion-template extraction so LivePortrait stops after `<driving>.pkl` is dumped, before the wasteful render loop that OOM'd `63805`. Preferred low-coupling approach: the wrapper watches for the template `.pkl` and terminates LivePortrait before rendering, keeping upstream unmodified. Note this fixes the OOM/crash but not the inherent per-frame extraction time (the ~3.5h for `session1` is the `make_motion_template` loop itself, not rendering). Per user decision, keep full 25 fps (no fps-downsample) for motion-target quality.
+- Separately, still-open higher-value options:
+- adding a single-command Bowdoin orchestration wrapper for the full preprocess-to-render pipeline
+- adding richer motion targets such as landmarks, head pose, or expression features
+
+## Handoff Notes
+
+- `origin/main` already includes the LivePortrait wrapper PR; this branch is only for HPC workflow and shared-context updates.
+- `PROJECT_CONTEXT.md` now records the canonical Bowdoin remote-access workflow for future sessions.
+- Remote authentication is now working from this machine with `.env.hpc.local`, and the reusable local skill lives at `~/.codex/skills/bowdoin-hpc-ssh`.
+- The remote code workspace and conda environment are ready, and the corrected weights command is `hf download KlingTeam/LivePortrait --local-dir ...`.
+- The real blocking issue is now Bowdoin home storage: direct downloads into the home workspace and home-backed Slurm logs can fail with `Disk quota exceeded`.
+- The durable Bowdoin storage root is now `/mnt/hpc/tmp/kelsedfy/video-persona-gen`.
+- The tracked short-term runtime workaround still lives at `slurm/liveportrait_infer_tmp.sbatch`, and it now has a verified persistent weight cache at `/mnt/hpc/tmp/<user>/video-persona-gen/liveportrait_weights`.
+- The verified local submit/fetch entrypoint now lives at `scripts/run_bowdoin_liveportrait_roundtrip.sh`.
+- The preprocessing entrypoints are no longer stubs; `scripts/preprocess_dataset.py` now emits real clip directories and refreshes the identity manifest by default.
+- Bowdoin Slurm job IDs from this session:
+  - `63713`: successful `pro6000` GPU probe
+  - `63715`: main-partition setup job; env and dependencies installed, failed at deprecated `huggingface-cli`
+  - `63716`: repair job; restored `huggingface_hub==0.36.2`, `pip check` passed
+  - `63717`: confirmed `hf` CLI exists in the env
+  - `63718`: prior `hf download` attempt
+  - `63741`: corrected `hf download` into home workspace; failed with `Disk quota exceeded`
+  - `63744`: first real inference attempt on `moose63`; reached frame generation and failed only because the home-backed Slurm log hit quota
+  - `63745`: node-local `/tmp` inference run on `moose63`; completed successfully with exit code `0`
+  - `63747`: first round-trip wrapper submission; remote run succeeded but exposed local fetch wrapper bugs
+  - `63748`: verified round-trip workflow; remote run succeeded and local MP4/log download succeeded
+- Additional verified Bowdoin jobs from this session:
+  - `63750`: Slurm smoke test for the new preprocessing pipeline on a synthetic audio-backed sample clip
+  - `63751`: first persistent-storage LivePortrait run; created the durable weight cache and persisted run artifacts under `/mnt/hpc/tmp/kelsedfy/video-persona-gen/liveportrait_runs/63751`
+  - `63752`: second persistent-storage LivePortrait run; reused the durable weight cache and persisted run artifacts under `/mnt/hpc/tmp/kelsedfy/video-persona-gen/liveportrait_runs/63752`
+  - `63754`: GPU smoke test for the new motion-template extraction path; produced `motion_template.pkl` and refreshed the processed sample manifest
+- The current remote recipe is: keep the existing Bowdoin env in home, stage the LivePortrait checkout copy under node-local `/tmp` for runtime, and persist reusable weights plus fetched artifacts under `/mnt/hpc/tmp/<user>/video-persona-gen`.
+- The current local data recipe is: `preprocess_dataset.py` -> `extract_motion.py` -> `create_splits.py` -> future audio/motion feature extraction and training loaders.
+- The current local data recipe is: `preprocess_dataset.py` -> `extract_motion.py` -> `create_splits.py` -> `extract_audio_features.py` -> `extract_motion_features.py` -> future landmark/expression features and training loaders.
+- The four merged model-side PRs from this session were:
+- `#11` aligned audio-motion sequence dataset
+- `#12` GRU motion training baseline
+- `#13` motion prediction pipeline
+- `#14` motion evaluation pipeline
+- `#15` docs model-pipeline handoff update
+- The predicted-template rendering branch merged through PR `#16`, which put the actual render bridge onto `main`.
+- The predicted-render round-trip branch merged through PR `#17`, which put the local Bowdoin fetch workflow onto `main`.
+- Verified Bowdoin scratch outputs from those PRs now include:
+- sequence inspection against `/mnt/hpc/tmp/kelsedfy/video-persona-gen/data/processed/smoke_preprocess/manifest.jsonl`
+- GRU smoke checkpoints under `/mnt/hpc/tmp/kelsedfy/video-persona-gen/verifications/gru-motion-training.eXMSL3/checkpoints/`
+- predicted motion artifacts under `/mnt/hpc/tmp/kelsedfy/video-persona-gen/predicted_motion/prediction-smoke.WCxJtx/`
+- evaluation metrics from job `63777` against that predicted-motion root
+- The Bowdoin home-repo checkout at `/home/kelsedfy/video-persona-gen` is currently dirty from earlier work, so future remote verification should keep using fresh scratch clones under `/mnt/hpc/tmp/kelsedfy/video-persona-gen/verifications/` unless that home checkout is intentionally cleaned up.
+- Current predicted-render verification notes:
+- Bowdoin job `63778` reached upstream LivePortrait and failed on the `rtx3080` path with `torch.AcceleratorError: CUDA-capable device(s) is/are busy or unavailable`
+- Bowdoin job `63779` reran the same branch after the relative-path fix and reached the same upstream GPU-allocation failure point before the branch default was moved to `pro6000`
+- Bowdoin job `63790` reran the branch from a fresh scratch clone on `gpu:pro6000:1` and completed successfully
+- verified output root: `/mnt/hpc/tmp/kelsedfy/video-persona-gen/render_predicted_motion/predicted-template-rendering-pro6000.ryrmmL/`
+- verified rendered files:
+- `/mnt/hpc/tmp/kelsedfy/video-persona-gen/render_predicted_motion/predicted-template-rendering-pro6000.ryrmmL/renders/smoke_preprocess/d0_tone/000000--predicted_motion_template.mp4`
+- `/mnt/hpc/tmp/kelsedfy/video-persona-gen/render_predicted_motion/predicted-template-rendering-pro6000.ryrmmL/renders/smoke_preprocess/d0_tone/000000--predicted_motion_template_concat.mp4`
+- Current round-trip notes:
+- verified Bowdoin job `63791` submitted through `scripts/run_bowdoin_predicted_render_roundtrip.sh`
+- verified remote output root: `/mnt/hpc/tmp/kelsedfy/video-persona-gen/render_predicted_motion/predicted-render-20260705-115732-6847`
+- verified local download root: `outputs/bowdoin_predicted_render/job-63791/`
+- verified local rendered files:
+- `outputs/bowdoin_predicted_render/job-63791/renders/smoke_preprocess/d0_tone/000000--predicted_motion_template.mp4`
+- `outputs/bowdoin_predicted_render/job-63791/renders/smoke_preprocess/d0_tone/000000--predicted_motion_template_concat.mp4`
+- Current manifest-preparation branch notes:
+- current branch: `feat/bowdoin-manifest-pipeline`
+- verified Bowdoin job `63792` ran `slurm/prepare_dataset_manifest.sbatch` against `/mnt/hpc/tmp/kelsedfy/video-persona-gen/data/processed/smoke_preprocess/manifest.jsonl`
+- verified stage order: `extract_motion.py` -> `create_splits.py` -> `extract_audio_features.py` -> `extract_motion_features.py`
+- verified refreshed artifacts stayed in place under `/mnt/hpc/tmp/kelsedfy/video-persona-gen/data/processed/smoke_preprocess/d0_tone/`
+- Current raw-preprocess round-trip notes:
+- current branch: `feat/bowdoin-preprocess-roundtrip`
+- verified Bowdoin job `63795` ran `slurm/preprocess.sbatch` against the uploaded raw identity dir `/mnt/hpc/tmp/kelsedfy/video-persona-gen/data/raw/hdtf_cmr`
+- verified remote processed identity root: `/mnt/hpc/tmp/kelsedfy/video-persona-gen/data/processed/hdtf_cmr`
+- verified local inspection bundle root: `outputs/bowdoin_preprocess/job-63795/`
+- Current real manifest-preparation notes:
+- current branch: `feat/hdtf-manifest-prep-run`
+- Bowdoin job `63799` failed immediately from a fresh scratch clone because `LIVEPORTRAIT_ROOT` defaulted to `$REPO_ROOT/external/LivePortrait`, which is absent in a normal clone
+- Bowdoin job `63800` reran through `scripts/run_bowdoin_prepare_manifest_roundtrip.sh`, fixed the missing-LivePortrait path issue, and fetched a local inspection bundle into `outputs/bowdoin_prepare_manifest/job-63800/`
+- `63800` still ended in Slurm state `OUT_OF_MEMORY` at the old `32G` default before writing any motion/audio artifacts back into the manifest
+- Bowdoin job `63801` proved the higher-memory raw-video path works functionally but is too slow for interactive iteration; it was canceled after clip `hdtf_cmr_session0_000` completed so the branch could switch to the more efficient face-crop driving mode
+- Bowdoin job `63805` (face-crop driving, `96G`) ran `4:39:20` then ended `OUT_OF_MEMORY` at `~96 GB` MaxRSS; it OOM'd during LivePortrait's discarded video-render loop on `session1_001` (~21k frames) after that clip's `motion_template.pkl` was already dumped. `session0_000`'s template completed and was on disk.
+- `session1_001`'s complete `21480`-frame template was salvaged from `/mnt/hpc/tmp/kelsedfy/video-persona-gen/motion_template_work/hdtf_cmr/hdtf_cmr/hdtf_cmr_session1_001/hdtf_cmr_session1_001_face_crops.pkl` into the processed clip dir (validated keys/frame count), with `metadata.json` updated to match the successful-run format — avoiding a ~3.5h re-extraction.
+- Finish job `63816` (submitted directly with `OVERWRITE_MOTION_TEMPLATES` unset so 0 & 1 `skipped_existing`, extracting only `session2_002`) completed cleanly and ran `extract_motion` -> `create_splits` -> `extract_audio_features` -> `extract_motion_features` -> manifest refresh.
+- Verified the `hdtf_cmr` manifest is fully training-ready: all 3 clips have non-null `motion_template_path`, `audio_features_path`, `prosody_summary_path`, `motion_features_path`, `motion_summary_path`; splits `session0=train`, `session1=test`, `session2=val`; `dataset_report.json` `num_clips=3`, `total_duration_sec=1248.04`, `total_frames=30193`. Local bundle at `outputs/bowdoin_prepare_manifest/job-63816/`.
+- Future sessions should play a local completion sound when a task is finished.
