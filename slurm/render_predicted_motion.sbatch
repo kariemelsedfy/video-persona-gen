@@ -50,6 +50,13 @@ cp -a "$LIVEPORTRAIT_ROOT" "$STAGED_LIVEPORTRAIT_ROOT"
 rm -rf "$STAGED_LIVEPORTRAIT_ROOT/pretrained_weights"
 ln -s "$PERSIST_WEIGHTS_DIR" "$STAGED_LIVEPORTRAIT_ROOT/pretrained_weights"
 
+# Predict on CPU by default so the GPU is left entirely to the LivePortrait
+# subprocess. On Exclusive_Process GPUs (a100/rtx* nodes) a GPU-side predictor
+# in this parent process holds the one allowed CUDA context and the LivePortrait
+# child then dies with cudaErrorDevicesUnavailable. CPU prediction of one clip is
+# cheap. Override with PREDICT_DEVICE=cuda (fine on Default-mode pro6000 nodes).
+PREDICT_DEVICE="${PREDICT_DEVICE:-cpu}"
+
 "$PYTHON_BIN" scripts/render_predicted_motion.py \
   --config "$REPO_ROOT/configs/render_predicted_motion.yaml" \
   --checkpoint "$CHECKPOINT_PATH" \
@@ -59,4 +66,5 @@ ln -s "$PERSIST_WEIGHTS_DIR" "$STAGED_LIVEPORTRAIT_ROOT/pretrained_weights"
   --predicted-output-root "$PREDICTED_OUTPUT_ROOT" \
   --liveportrait-root "$STAGED_LIVEPORTRAIT_ROOT" \
   --python-executable "$PYTHON_BIN" \
+  --device "$PREDICT_DEVICE" \
   "$@"
