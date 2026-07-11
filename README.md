@@ -4,7 +4,8 @@
 
 <p align="center">
   <img src="docs/assets/demo/demo_comparison.gif" width="640"/><br/>
-  <em>Left: ground-truth footage &nbsp;·&nbsp; Right: generated from audio (flow + CFG, 16-clip model).</em>
+  <em>Left: ground-truth footage &nbsp;·&nbsp; Right: generated from audio (flow + CFG, 16-clip model).</em><br/>
+  <sub>From the second half of the clip · <a href="docs/assets/demo/demo_second_half.mp4">full second-half render with audio (mp4)</a></sub>
 </p>
 
 > **About this demo:** the audio is a segment of a real Andrew Huberman podcast; the right panel is our model driving a single source portrait. This clip's timeline was **part of training** (windowed within-clip split, see below), so it demonstrates **same-speaker reconstruction quality**, *not* identity or out-of-distribution generalization — which this person-specific model does not claim. See [Limitations](docs/limitations.md).
