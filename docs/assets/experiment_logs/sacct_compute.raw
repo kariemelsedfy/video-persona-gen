@@ -1,0 +1,45 @@
+
+===== SACCT (training/render/preprocess jobs, Jul 6-11) =====
+JobID|JobName|Elapsed|State|AllocTRES|NodeList
+63805|prepare-manifest-fetch|04:39:20|OUT_OF_MEMORY|billing=4,cpu=4,gres/gpu:pro6000=1,gres/gpu=1,mem=96G,node=1|moose68
+63874|avagen-train-hdtf|00:00:00|CANCELLED by 22149||None assigned
+63914|avagen-train-hdtf|00:01:34|COMPLETED|billing=4,cpu=4,gres/gpu:rtx2080=1,gres/gpu=1,mem=64G,node=1|moose64
+63917|predicted-render-fetch|00:02:10|COMPLETED|billing=4,cpu=4,gres/gpu:pro6000=1,gres/gpu=1,mem=48G,node=1|moose69
+63924|avagen-train-norm|00:01:31|COMPLETED|billing=4,cpu=4,gres/gpu:rtx2080=1,gres/gpu=1,mem=64G,node=1|moose64
+63926|predicted-render-fetch|00:02:12|COMPLETED|billing=4,cpu=4,gres/gpu:pro6000=1,gres/gpu=1,mem=48G,node=1|moose69
+63929|avagen-train-mel|00:01:34|COMPLETED|billing=4,cpu=4,gres/gpu:rtx2080=1,gres/gpu=1,mem=64G,node=1|moose64
+63931|predicted-render-fetch|00:01:49|COMPLETED|billing=4,cpu=4,gres/gpu:pro6000=1,gres/gpu=1,mem=48G,node=1|moose69
+63932|avagen-train-melbi|00:02:18|COMPLETED|billing=4,cpu=4,gres/gpu:rtx2080=1,gres/gpu=1,mem=64G,node=1|moose64
+63950|avagen-train-melfix|00:01:47|COMPLETED|billing=4,cpu=4,gres/gpu:rtx2080=1,gres/gpu=1,mem=64G,node=1|moose64
+63952|predicted-render-fetch|00:02:09|COMPLETED|billing=4,cpu=4,gres/gpu:pro6000=1,gres/gpu=1,mem=48G,node=1|moose69
+63957|avagen-train-w2v|00:00:14|FAILED|billing=4,cpu=4,gres/gpu:rtx2080=1,gres/gpu=1,mem=64G,node=1|moose64
+63961|avagen-train-w2v|00:01:49|COMPLETED|billing=4,cpu=4,gres/gpu:rtx2080=1,gres/gpu=1,mem=64G,node=1|moose64
+63963|predicted-render-fetch|00:02:18|COMPLETED|billing=4,cpu=4,gres/gpu:pro6000=1,gres/gpu=1,mem=48G,node=1|moose69
+63964|predicted-render-fetch|00:00:06|FAILED|billing=4,cpu=4,gres/gpu:pro6000=1,gres/gpu=1,mem=48G,node=1|moose69
+63966|predicted-render-fetch|00:01:53|COMPLETED|billing=4,cpu=4,gres/gpu:pro6000=1,gres/gpu=1,mem=48G,node=1|moose69
+63970|predicted-render-fetch|00:02:22|COMPLETED|billing=4,cpu=4,gres/gpu:pro6000=1,gres/gpu=1,mem=48G,node=1|moose69
+63972|predicted-render-fetch|00:02:27|COMPLETED|billing=4,cpu=4,gres/gpu:pro6000=1,gres/gpu=1,mem=48G,node=1|moose69
+63976|avagen-train-w2vreg|00:01:51|COMPLETED|billing=4,cpu=4,gres/gpu:rtx2080=1,gres/gpu=1,mem=64G,node=1|moose64
+63985|preprocess-fetch|00:16:59|COMPLETED|billing=8,cpu=8,mem=32G,node=1|moose21
+63987|huberman-prep|00:00:21|FAILED|billing=4,cpu=4,gres/gpu:pro6000=1,gres/gpu=1,mem=96G,node=1|moose69
+63988|huberman-prep|06:16:45|COMPLETED|billing=4,cpu=4,gres/gpu:pro6000=1,gres/gpu=1,mem=96G,node=1|moose69
+63994|huberman-train-w2v|00:02:21|COMPLETED|billing=4,cpu=4,gres/gpu:rtx2080=1,gres/gpu=1,mem=64G,node=1|moose64
+63996|predicted-render-fetch|00:03:07|COMPLETED|billing=4,cpu=4,gres/gpu:pro6000=1,gres/gpu=1,mem=48G,node=1|moose69
+64034|predicted-render-fetch|00:03:22|COMPLETED|billing=4,cpu=4,gres/gpu:pro6000=1,gres/gpu=1,mem=48G,node=1|moose68
+64089|huberman-flow|00:12:44|COMPLETED|billing=4,cpu=4,gres/gpu:rtx2080=1,gres/gpu=1,mem=64G,node=1|moose64
+64094|predicted-render-fetch|00:03:25|COMPLETED|billing=4,cpu=4,gres/gpu:pro6000=1,gres/gpu=1,mem=48G,node=1|moose68
+64096|cmr-flow|00:10:58|COMPLETED|billing=4,cpu=4,gres/gpu:rtx2080=1,gres/gpu=1,mem=64G,node=1|moose64
+64099|predicted-render-fetch|00:02:32|COMPLETED|billing=4,cpu=4,gres/gpu:pro6000=1,gres/gpu=1,mem=48G,node=1|moose68
+64100|predicted-render-fetch|00:02:59|COMPLETED|billing=4,cpu=4,gres/gpu:pro6000=1,gres/gpu=1,mem=48G,node=1|moose68
+64204|predicted-render-fetch|00:03:25|COMPLETED|billing=4,cpu=4,gres/gpu:pro6000=1,gres/gpu=1,mem=48G,node=1|moose69
+64205|huberman-syncnet|00:04:20|COMPLETED|billing=4,cpu=4,gres/gpu:rtx2080=1,gres/gpu=1,mem=64G,node=1|moose64
+64208|huberman-flowcfg|00:12:20|COMPLETED|billing=4,cpu=4,gres/gpu:rtx2080=1,gres/gpu=1,mem=64G,node=1|moose64
+64210|preprocess-fetch|00:03:03|CANCELLED by 22149|billing=8,cpu=8,mem=32G,node=1|moose12
+64212|preprocess-fetch|00:33:12|COMPLETED|billing=8,cpu=8,mem=32G,node=1|moose12
+64215|hub16-prep|06:26:42|COMPLETED|billing=4,cpu=4,gres/gpu:pro6000=1,gres/gpu=1,mem=96G,node=1|moose69
+64291|hub-flowcfg16|00:21:38|COMPLETED|billing=4,cpu=4,gres/gpu:rtx2080=1,gres/gpu=1,mem=64G,node=1|moose64
+64300|predicted-render-fetch|00:00:00|CANCELLED by 22149||None assigned
+64301|predicted-render-fetch|00:00:31|FAILED|billing=4,cpu=4,gres/gpu:rtx5090=1,gres/gpu=1,mem=32G,node=1|moose63
+64302|predicted-render-fetch|00:00:23|FAILED|billing=4,cpu=4,gres/gpu:a100=1,gres/gpu=1,mem=32G,node=1|moose63
+64303|predicted-render-fetch|00:00:26|FAILED|billing=4,cpu=4,gres/gpu:rtx2080=1,gres/gpu=1,mem=32G,node=1|moose64
+64304|predicted-render-fetch|00:00:00|CANCELLED by 22149||None assigned
